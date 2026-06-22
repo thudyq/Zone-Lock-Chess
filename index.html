@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的棋类游戏</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>我的棋类游戏</h1>
+
+    <p>
+        棋盘大小：
+        <select id="boardSize">
+            <option value="6">6 × 6</option>
+            <option value="8" selected>8 × 8</option>
+            <option value="10">10 × 10</option>
+            <option value="12">12 × 12</option>
+        </select>
+    </p>
+
+    <p id="turn">当前玩家：黑棋</p>
+
+    <p id="moveCount"></p>
+
+    <button id="restart">重新开始</button>
+    <button id="undoBtn">悔棋</button>
+
+    <div id="board"></div>
+    <div id="overlay" class="hidden">
+
+        <div id="resultBox">
+
+            <h2 id="resultText"></h2>
+
+            <button id="playAgain">
+                再来一局
+            </button>
+
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
