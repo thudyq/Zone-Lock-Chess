@@ -314,8 +314,8 @@ function updateTurnText() {
 
     turnText.textContent =
         currentPlayer === 1
-        ? "当前玩家：黑棋"
-        : "当前玩家：白棋";
+        ? "当前玩家：⚫ 黑棋"
+        : "当前玩家：⚪ 白棋";
 
     const blackMoves =
         countLegalMoves(1);
@@ -387,12 +387,12 @@ function updateEvaluation() {
     if (diff > 5) {
 
         text =
-            `局势评估：黑棋优势 (+${diff})`;
+            `局势评估：⚫ 黑棋优势 (+${diff})`;
 
     } else if (diff < -5) {
 
         text =
-            `局势评估：白棋优势 (+${-diff})`;
+            `局势评估：⚪ 白棋优势 (+${-diff})`;
 
     } else {
 
@@ -429,5 +429,10 @@ function updateHistoryList() {
             `${player} ${coord}`;
 
         historyList.appendChild(li);
+    });
+
+    historyList.scrollTo({
+        top: historyList.scrollHeight,
+        behavior: "smooth"
     });
 }

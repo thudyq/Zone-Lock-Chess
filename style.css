@@ -210,22 +210,43 @@ button {
 
     display: flex;
 
-    justify-content: center;
-
     align-items: flex-start;
 
-    gap: 40px;
+    max-width: 1200px;
+
+    margin: 0 auto;
+}
+
+#boardContainer {
+
+    flex: 1;
+
+    display: flex;
+
+    justify-content: center;
+}
+
+#gameArea {
+
+    padding: 15px;
+
+    border-radius: 12px;
+
+    background: white;
+
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 #sidePanel {
 
-    width: 260px;
+    width: fit-content;
 
     display: flex;
 
     flex-direction: column;
 
     gap: 15px;
+
 }
 
 .panelCard {
@@ -257,15 +278,4 @@ button {
     overflow-y: auto;
 
     margin: 0;
-}
-
-#gameArea {
-
-    padding: 15px;
-
-    border-radius: 12px;
-
-    background: white;
-
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
