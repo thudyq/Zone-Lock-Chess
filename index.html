@@ -10,34 +10,58 @@
 
     <h1>我的棋类游戏</h1>
 
-    <p>
-        棋盘大小：
-        <select id="boardSize">
-            <option value="6">6 × 6</option>
-            <option value="8" selected>8 × 8</option>
-            <option value="10">10 × 10</option>
-            <option value="12">12 × 12</option>
-        </select>
-    </p>
+    <div id="topBar">
+        <p>
+            <label for="boardSize">
+                棋盘大小：
+            </label>
+            <select id="boardSize">
+                <option value="6">6 × 6</option>
+                <option value="8" selected>8 × 8</option>
+                <option value="10">10 × 10</option>
+                <option value="12">12 × 12</option>
+            </select>
+        </p>
 
-    <p id="turn">当前玩家：黑棋</p>
+        <button id="restart">重新开始</button>
+        <button id="undoBtn">悔棋</button>
+    </div>
+    
+    <div id="mainArea">
 
-    <p id="moveCount"></p>
-    <p id="evaluation"></p>
+        <div id="gameArea">
 
-    <button id="restart">重新开始</button>
-    <button id="undoBtn">悔棋</button>
+            <div id="columnLabels"></div>
 
-    <div id="gameArea">
+            <div id="boardRow">
 
-        <div id="columnLabels"></div>
+                <div id="rowLabels"></div>
 
-        <div id="boardRow">
+                <div id="board"></div>
 
-            <div id="rowLabels"></div>
+            </div>
 
-            <div id="board"></div>
+        </div>
 
+        <div id="sidePanel">
+
+            <div id="panelCard">
+
+                <p id="turn">当前玩家：黑棋</p>
+
+                <p id="moveCount"></p>
+                <p id="evaluation"></p>
+
+                <div id="historyPanel">
+
+                    <h3>棋谱记录</h3>
+
+                    <ol id="historyList"></ol>
+
+                </div>
+                
+            </div>
+    
         </div>
 
     </div>
@@ -56,14 +80,6 @@
 
     </div>
 
-    <div id="historyPanel">
-
-        <h3>棋谱记录</h3>
-
-        <ol id="historyList"></ol>
-
-    </div>
-    
     <script src="script.js"></script>
 
 </body>

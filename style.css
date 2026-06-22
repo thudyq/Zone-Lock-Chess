@@ -3,6 +3,7 @@
 }
 
 body {
+    background: #f5f6f8;
     font-family: Arial, sans-serif;
     text-align: center;
     margin-top: 20px;
@@ -188,4 +189,83 @@ button {
     margin: 20px auto;
 
     text-align: left;
+}
+
+#topBar {
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    gap: 12px;
+
+    margin-bottom: 25px;
+
+    flex-wrap: wrap;
+}
+
+#mainArea {
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: flex-start;
+
+    gap: 40px;
+}
+
+#sidePanel {
+
+    width: 260px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 15px;
+}
+
+.panelCard {
+
+    background: white;
+
+    border: 1px solid #ddd;
+
+    border-radius: 12px;
+
+    padding: 15px;
+
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.panelCard h3 {
+
+    margin-top: 0;
+
+    margin-bottom: 10px;
+
+    font-size: 18px;
+}
+
+#historyList {
+
+    max-height: 300px;
+
+    overflow-y: auto;
+
+    margin: 0;
+}
+
+#gameArea {
+
+    padding: 15px;
+
+    border-radius: 12px;
+
+    background: white;
+
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }

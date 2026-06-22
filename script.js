@@ -68,7 +68,7 @@ playAgain.addEventListener(
 );
 
 function initializeGame() {
-    
+
     history = [];
 
     BOARD_SIZE =
