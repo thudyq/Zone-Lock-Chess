@@ -127,3 +127,34 @@ button {
 
     text-align: center;
 }
+
+#gameArea {
+    margin: 20px auto;
+    width: fit-content;
+}
+
+#columnLabels {
+    display: flex;
+    margin-left: 40px;
+}
+
+#boardRow {
+    display: flex;
+    align-items: flex-start;
+}
+
+#rowLabels {
+    display: flex;
+    flex-direction: column;
+}
+
+.coord-label {
+    width: 40px;
+    height: 60px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    font-weight: bold;
+}
