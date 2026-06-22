@@ -105,6 +105,19 @@ function renderBoard() {
         columnLabels.appendChild(label);
     }
 
+    for (let r = 0; r < BOARD_SIZE; r++) {
+
+        const label =
+            document.createElement("div");
+
+        label.classList.add("coord-label");
+
+        label.textContent =
+            r + 1;
+
+        rowLabels.appendChild(label);
+    }
+
     boardDiv.style.gridTemplateColumns =
     `repeat(${BOARD_SIZE}, 60px)`;
 
