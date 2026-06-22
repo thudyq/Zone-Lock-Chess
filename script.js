@@ -33,6 +33,9 @@ const resultText =
 const playAgain =
     document.getElementById("playAgain");
 
+const evaluationText =
+    document.getElementById("evaluation");
+
 initializeGame();
 
 restartBtn.addEventListener("click", initializeGame);
@@ -80,9 +83,9 @@ function initializeGame() {
     currentPlayer = 1;
     gameOver = false;
 
-    updateTurnText();
     renderBoard();
     updateTurnText();
+    updateEvaluation();
 }
 
 function renderBoard() {
@@ -210,11 +213,13 @@ board[row][col] = currentPlayer;
 
     renderBoard();
     updateTurnText();
+    updateEvaluation();
 
     checkGameEnd();
 
     if (!gameOver) {
         updateTurnText();
+        updateEvaluation();
     }
 }
 
@@ -350,6 +355,7 @@ function undoMove() {
 
     renderBoard();
     updateTurnText();
+    updateEvaluation();
 }
 
 function showResult(text) {
@@ -357,4 +363,37 @@ function showResult(text) {
     resultText.textContent = text;
 
     overlay.classList.remove("hidden");
+}
+
+function updateEvaluation() {
+
+    const blackMoves =
+        countLegalMoves(1);
+
+    const whiteMoves =
+        countLegalMoves(2);
+
+    const diff =
+        blackMoves - whiteMoves;
+
+    let text = "";
+
+    if (diff > 5) {
+
+        text =
+            `局势评估：黑棋优势 (+${diff})`;
+
+    } else if (diff < -5) {
+
+        text =
+            `局势评估：白棋优势 (+${-diff})`;
+
+    } else {
+
+        text =
+            "局势评估：均势";
+    }
+
+    evaluationText.textContent =
+        text;
 }
