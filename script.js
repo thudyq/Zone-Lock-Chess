@@ -36,6 +36,9 @@ const playAgain =
 const evaluationText =
     document.getElementById("evaluation");
 
+const historyList =
+    document.getElementById("historyList");
+
 initializeGame();
 
 restartBtn.addEventListener("click", initializeGame);
@@ -86,6 +89,7 @@ function initializeGame() {
     renderBoard();
     updateTurnText();
     updateEvaluation();
+    updateHistoryList();
 }
 
 function renderBoard() {
@@ -214,6 +218,7 @@ board[row][col] = currentPlayer;
     renderBoard();
     updateTurnText();
     updateEvaluation();
+    updateHistoryList();
 
     checkGameEnd();
 
@@ -356,6 +361,7 @@ function undoMove() {
     renderBoard();
     updateTurnText();
     updateEvaluation();
+    updateHistoryList();
 }
 
 function showResult(text) {
@@ -396,4 +402,32 @@ function updateEvaluation() {
 
     evaluationText.textContent =
         text;
+}
+
+function updateHistoryList() {
+
+    historyList.innerHTML = "";
+
+    const letters =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    history.forEach((move, index) => {
+
+        const li =
+            document.createElement("li");
+
+        const player =
+            move.player === 1
+            ? "黑"
+            : "白";
+
+        const coord =
+            letters[move.col]
+            + (move.row + 1);
+
+        li.textContent =
+            `${player} ${coord}`;
+
+        historyList.appendChild(li);
+    });
 }

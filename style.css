@@ -180,3 +180,12 @@ button {
     justify-content: center;
     align-items: center;
 }
+
+#historyPanel {
+
+    width: 300px;
+
+    margin: 20px auto;
+
+    text-align: left;
+}
