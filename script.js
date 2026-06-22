@@ -11,9 +11,18 @@ let board = [];
 let currentPlayer = 1; // 1=黑棋 2=白棋
 let gameOver = false;
 
+const letters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 const boardDiv = document.getElementById("board");
 const turnText = document.getElementById("turn");
 const restartBtn = document.getElementById("restart");
+
+const columnLabels =
+    document.getElementById("columnLabels");
+
+const rowLabels =
+    document.getElementById("rowLabels");
 
 const overlay =
     document.getElementById("overlay");
@@ -79,6 +88,22 @@ function initializeGame() {
 function renderBoard() {
 
     boardDiv.innerHTML = "";
+
+    columnLabels.innerHTML = "";
+    rowLabels.innerHTML = "";
+
+    for (let c = 0; c < BOARD_SIZE; c++) {
+
+        const label =
+            document.createElement("div");
+
+        label.classList.add("coord-label");
+
+        label.textContent =
+            letters[c];
+
+        columnLabels.appendChild(label);
+    }
 
     boardDiv.style.gridTemplateColumns =
     `repeat(${BOARD_SIZE}, 60px)`;
