@@ -44,6 +44,11 @@ const historyList =
 const gameMode =
     document.getElementById("gameMode");
 
+let previousBoardSize = boardSize.value;
+let previousGameMode = gameMode.value;
+
+let aiTimer = null;
+
 initializeGame();
 
 restartBtn.addEventListener("click", initializeGame);
@@ -71,9 +76,39 @@ playAgain.addEventListener(
         initializeGame();
     }
 );
+gameMode.addEventListener(
+    "change",
+    () => {
+
+        const confirmed = confirm(
+            "切换游戏模式将重新开始游戏，是否继续？"
+        );
+
+        if (confirmed) {
+
+            previousGameMode =
+                gameMode.value;
+
+            initializeGame();
+
+        } else {
+
+            gameMode.value =
+                previousGameMode;
+        }
+    }
+);
 
 function initializeGame() {
 
+    aiThinking = false;
+
+    if (aiTimer) {
+
+        clearTimeout(aiTimer);
+
+        aiTimer = null;
+    }
     history = [];
 
     BOARD_SIZE =
@@ -239,7 +274,7 @@ function handleMove(row, col) {
 
         aiThinking = true;
 
-        setTimeout(
+        aiTimer = setTimeout(
             makeRandomAIMove,
             300
         );
@@ -512,31 +547,59 @@ function getLegalMoves(player) {
 
 function makeRandomAIMove() {
 
-    const legalMoves =
-        getLegalMoves(2);
-
     if (
-        legalMoves.length === 0
+        gameOver ||
+        gameMode.value !== "ai"
     ) {
-
-        aiThinking = false;
-
         return;
     }
 
-    const move =
-        legalMoves[
-            Math.floor(
-                Math.random()
-                *
-                legalMoves.length
-            )
-        ];
+    const legalMoves =
+        getLegalMoves(2);
+
+    if (legalMoves.length === 0) {
+        aiThinking = false;
+        return;
+    }
+
+    let bestMove = null;
+    let bestScore = -Infinity;
+
+    for (let move of legalMoves) {
+
+        const score =
+            evaluateMove(move.row, move.col);
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = move;
+        }
+    }
 
     aiThinking = false;
 
     handleMove(
-        move.row,
-        move.col
+        bestMove.row,
+        bestMove.col
     );
+}
+
+function evaluateMove(row, col) {
+
+    // 1. 模拟落子（AI是白棋=2）
+    board[row][col] = 2;
+
+    // 2. 计算AI可走位置
+    const aiMoves =
+        getLegalMoves(2).length;
+
+    // 3. 计算玩家可走位置
+    const playerMoves =
+        getLegalMoves(1).length;
+
+    // 4. 撤销模拟
+    board[row][col] = 0;
+
+    // 5. 返回评分（核心）
+    return aiMoves - playerMoves;
 }
