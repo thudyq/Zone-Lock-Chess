@@ -11,6 +11,8 @@ let board = [];
 let currentPlayer = 1; // 1=黑棋 2=白棋
 let gameOver = false;
 
+let aiThinking = false;
+
 const letters =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -38,6 +40,9 @@ const evaluationText =
 
 const historyList =
     document.getElementById("historyList");
+
+const gameMode =
+    document.getElementById("gameMode");
 
 initializeGame();
 
@@ -197,6 +202,7 @@ function renderBoard() {
 
 function handleMove(row, col) {
 
+    if (aiThinking) return;
     if (gameOver) return;
 
     if (!isLegal(row, col, currentPlayer)) {
@@ -210,10 +216,13 @@ function handleMove(row, col) {
         player: currentPlayer
     });
 
-board[row][col] = currentPlayer;
+    board[row][col] = currentPlayer;
 
     // 切换玩家
-    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    currentPlayer =
+        currentPlayer === 1
+        ? 2
+        : 1;
 
     renderBoard();
     updateTurnText();
@@ -222,9 +231,18 @@ board[row][col] = currentPlayer;
 
     checkGameEnd();
 
-    if (!gameOver) {
-        updateTurnText();
-        updateEvaluation();
+    if (
+        !gameOver &&
+        gameMode.value === "ai" &&
+        currentPlayer === 2
+    ) {
+
+        aiThinking = true;
+
+        setTimeout(
+            makeRandomAIMove,
+            300
+        );
     }
 }
 
@@ -346,22 +364,50 @@ function countLegalMoves(player) {
 
 function undoMove() {
 
-    if (history.length === 0) {
-        return;
+    if (
+        gameMode.value === "ai"
+    ) {
+
+        for (
+            let i = 0;
+            i < 2;
+            i++
+        ) {
+
+            if (
+                history.length === 0
+            ) break;
+
+            const lastMove =
+                history.pop();
+
+            board[
+                lastMove.row
+            ][
+                lastMove.col
+            ] = 0;
+        }
+
+        currentPlayer = 1;
+
+    } else {
+        if (history.length === 0) {
+            return;
+        }
+
+        const lastMove = history.pop();
+
+        board[lastMove.row][lastMove.col] = 0;
+
+        currentPlayer = lastMove.player;
+
+        gameOver = false;
+
+        renderBoard();
+        updateTurnText();
+        updateEvaluation();
+        updateHistoryList();
     }
-
-    const lastMove = history.pop();
-
-    board[lastMove.row][lastMove.col] = 0;
-
-    currentPlayer = lastMove.player;
-
-    gameOver = false;
-
-    renderBoard();
-    updateTurnText();
-    updateEvaluation();
-    updateHistoryList();
 }
 
 function showResult(text) {
@@ -435,4 +481,62 @@ function updateHistoryList() {
         top: historyList.scrollHeight,
         behavior: "smooth"
     });
+}
+
+function getLegalMoves(player) {
+
+    const moves = [];
+
+    for (let row = 0; row < BOARD_SIZE; row++) {
+
+        for (let col = 0; col < BOARD_SIZE; col++) {
+
+            if (
+                isLegal(
+                    row,
+                    col,
+                    player
+                )
+            ) {
+
+                moves.push({
+                    row,
+                    col
+                });
+            }
+        }
+    }
+
+    return moves;
+}
+
+function makeRandomAIMove() {
+
+    const legalMoves =
+        getLegalMoves(2);
+
+    if (
+        legalMoves.length === 0
+    ) {
+
+        aiThinking = false;
+
+        return;
+    }
+
+    const move =
+        legalMoves[
+            Math.floor(
+                Math.random()
+                *
+                legalMoves.length
+            )
+        ];
+
+    aiThinking = false;
+
+    handleMove(
+        move.row,
+        move.col
+    );
 }
