@@ -3,139 +3,72 @@
 }
 
 body {
+    margin-top: 20px;
     background: #f5f6f8;
     font-family: Arial, sans-serif;
     text-align: center;
-    margin-top: 20px;
-}
-
-#board {
-    display: grid;
-    grid-template-columns: repeat(8, 60px);
-    gap: 2px;
-    justify-content: center;
-    margin-top: 0px;
-}
-
-.cell {
-    width: 60px;
-    height: 60px;
-    background-color: #e0e0e0;
-    border: 1px solid #999;
-    cursor: pointer;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.piece {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-}
-
-.black {
-    background-color: black;
-}
-
-.white {
-    background-color: white;
-    border: 1px solid #666;
 }
 
 button {
     padding: 8px 16px;
     font-size: 16px;
 }
-.legal-move {
-    position: relative;
-}
 
-.legal-move::after {
-    content: "";
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background-color: #4caf50;
-
-    position: absolute;
-}
-
-.cell:hover {
-    filter: brightness(0.95);
-}
-
-.cell {
-    position: relative;
-}
-.preview-black::before {
-    content: "";
-
-    width: 42px;
-    height: 42px;
-
-    border-radius: 50%;
-
-    background: black;
-
-    opacity: 0.3;
-
-    position: absolute;
-}
-.preview-white::before {
-    content: "";
-
-    width: 42px;
-    height: 42px;
-
-    border-radius: 50%;
-
-    background: white;
-
-    border: 1px solid #888;
-
-    opacity: 0.6;
-
-    position: absolute;
-}
-
-#overlay {
-
-    position: fixed;
-
-    left: 0;
-    top: 0;
-
-    width: 100vw;
-    height: 100vh;
-
-    background: rgba(0,0,0,0.4);
-
+/* 顶部控制栏 */
+#topBar {
     display: flex;
-
     justify-content: center;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 25px;
 }
 
-.hidden {
-    display: none !important;
+/* 主布局 */
+#mainArea {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
-#resultBox {
-
-    background: white;
-
-    padding: 30px;
-
-    border-radius: 12px;
-
-    text-align: center;
+#boardContainer {
+    flex: 1;
+    display: flex;
+    justify-content: center;
 }
 
-#gameArea {
-    margin: 20px auto;
+#sidePanel {
     width: fit-content;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.panelCard {
+    padding: 15px;
+    background: #ffffff;
+    border: 1px solid #dddddd;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.panelCard h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+/* 棋盘区域 */
+#gameArea {
+    width: fit-content;
+    padding: 15px;
+    margin: 20px auto;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 #columnLabels {
@@ -153,129 +86,127 @@ button {
     flex-direction: column;
 }
 
-.coord-label {
-    width: 60px;
-    height: 60px;
+#board {
+    display: grid;
+    grid-template-columns: repeat(8, 60px);
+    gap: 2px;
+    justify-content: center;
+}
 
+/* 坐标标签 */
+.coord-label {
     display: flex;
     justify-content: center;
     align-items: center;
-
     font-weight: bold;
 }
 
 #columnLabels .coord-label {
     width: 62px;
     height: 40px;
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
 }
 
 #rowLabels .coord-label {
     width: 40px;
     height: 62px;
+}
 
+/* 格子 */
+.cell {
+    position: relative;
+    width: 60px;
+    height: 60px;
     display: flex;
     justify-content: center;
     align-items: center;
+    background-color: #e0e0e0;
+    border: 1px solid #999999;
+    cursor: pointer;
 }
 
+.cell:hover {
+    filter: brightness(0.95);
+}
+
+.legal-move::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #4caf50;
+}
+
+/* 棋子与预览 */
+.piece {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+}
+
+.piece-black {
+    background-color: #000000;
+}
+
+.piece-white {
+    background-color: #ffffff;
+    border: 1px solid #666666;
+}
+
+.preview-black::before,
+.preview-white::before {
+    content: "";
+    position: absolute;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+}
+
+.preview-black::before {
+    background: #000000;
+    opacity: 0.3;
+}
+
+.preview-white::before {
+    background: #ffffff;
+    border: 1px solid #888888;
+    opacity: 0.6;
+}
+
+/* 棋谱记录 */
 #historyPanel {
-
     width: 300px;
-
     margin: 20px auto;
-
     text-align: left;
 }
 
-#topBar {
-
-    display: flex;
-
-    justify-content: center;
-
-    align-items: center;
-
-    gap: 12px;
-
-    margin-bottom: 25px;
-
-    flex-wrap: wrap;
-}
-
-#mainArea {
-
-    display: flex;
-
-    align-items: flex-start;
-
-    max-width: 1200px;
-
-    margin: 0 auto;
-}
-
-#boardContainer {
-
-    flex: 1;
-
-    display: flex;
-
-    justify-content: center;
-}
-
-#gameArea {
-
-    padding: 15px;
-
-    border-radius: 12px;
-
-    background: white;
-
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-#sidePanel {
-
-    width: fit-content;
-
-    display: flex;
-
-    flex-direction: column;
-
-    gap: 15px;
-
-}
-
-.panelCard {
-
-    background: white;
-
-    border: 1px solid #ddd;
-
-    border-radius: 12px;
-
-    padding: 15px;
-
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
-
-.panelCard h3 {
-
-    margin-top: 0;
-
-    margin-bottom: 10px;
-
-    font-size: 18px;
-}
-
 #historyList {
-
     max-height: 300px;
-
-    overflow-y: auto;
-
     margin: 0;
+    overflow-y: auto;
+}
+
+/* 结束弹窗 */
+#overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+#resultBox {
+    padding: 30px;
+    background: #ffffff;
+    border-radius: 12px;
+    text-align: center;
+}
+
+/* 工具类 */
+.hidden {
+    display: none !important;
 }

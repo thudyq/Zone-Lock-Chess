@@ -1,130 +1,85 @@
-let history = [];
-let BOARD_SIZE = 8;
-const sizeSelector =
-    document.getElementById("boardSize");
-const moveCountText =
-    document.getElementById("moveCount");
-const undoBtn =
-    document.getElementById("undoBtn");
+// ==================== 常量 ====================
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const DIRECTIONS = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1]
+];
+const AI_DELAY_MS = 300;
 
-let board = [];
-let currentPlayer = 1; // 1=黑棋 2=白棋
-let gameOver = false;
+const PLAYER_BLACK = 1;
+const PLAYER_WHITE = 2;
+const PLAYER_NAMES = {
+    [PLAYER_BLACK]: "黑棋",
+    [PLAYER_WHITE]: "白棋"
+};
 
-let aiThinking = false;
-
-const letters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
+// ==================== DOM 元素引用 ====================
 const boardDiv = document.getElementById("board");
-const turnText = document.getElementById("turn");
-const restartBtn = document.getElementById("restart");
+const columnLabelsDiv = document.getElementById("columnLabels");
+const rowLabelsDiv = document.getElementById("rowLabels");
+const turnText = document.getElementById("turnText");
+const moveCountText = document.getElementById("moveCountText");
+const evaluationText = document.getElementById("evaluationText");
+const historyList = document.getElementById("historyList");
+const overlay = document.getElementById("overlay");
+const resultText = document.getElementById("resultText");
 
-const columnLabels =
-    document.getElementById("columnLabels");
+const boardSizeSelect = document.getElementById("boardSize");
+const gameModeSelect = document.getElementById("gameMode");
+const restartBtn = document.getElementById("restartBtn");
+const undoBtn = document.getElementById("undoBtn");
+const playAgainBtn = document.getElementById("playAgainBtn");
 
-const rowLabels =
-    document.getElementById("rowLabels");
-
-const overlay =
-    document.getElementById("overlay");
-
-const resultText =
-    document.getElementById("resultText");
-
-const playAgain =
-    document.getElementById("playAgain");
-
-const evaluationText =
-    document.getElementById("evaluation");
-
-const historyList =
-    document.getElementById("historyList");
-
-const gameMode =
-    document.getElementById("gameMode");
-
-let previousBoardSize = boardSize.value;
-let previousGameMode = gameMode.value;
-
+// ==================== 游戏状态 ====================
+let boardSize = 8;
+let board = [];
+let currentPlayer = PLAYER_BLACK;
+let gameOver = false;
+let moveHistory = [];
+let aiThinking = false;
 let aiTimer = null;
+let previousBoardSize = boardSizeSelect.value;
+let previousGameMode = gameModeSelect.value;
 
-initializeGame();
-
+// ==================== 事件监听 ====================
 restartBtn.addEventListener("click", initializeGame);
-sizeSelector.addEventListener("change", () => {
 
-    if (
-        confirm(
-            "修改棋盘大小将重新开始游戏，是否继续？"
-        )
-    ) {
+boardSizeSelect.addEventListener("change", () => {
+    const message = "修改棋盘大小将重新开始游戏，是否继续？";
+    if (confirm(message)) {
         initializeGame();
     }
 });
-undoBtn.addEventListener(
-    "click",
-    undoMove
-);
 
-playAgain.addEventListener(
-    "click",
-    () => {
-
-        overlay.classList.add("hidden");
-
+gameModeSelect.addEventListener("change", () => {
+    const message = "切换游戏模式将重新开始游戏，是否继续？";
+    if (confirm(message)) {
+        previousGameMode = gameModeSelect.value;
         initializeGame();
+    } else {
+        gameModeSelect.value = previousGameMode;
     }
-);
-gameMode.addEventListener(
-    "change",
-    () => {
+});
 
-        const confirmed = confirm(
-            "切换游戏模式将重新开始游戏，是否继续？"
-        );
+undoBtn.addEventListener("click", undoMove);
 
-        if (confirmed) {
+playAgainBtn.addEventListener("click", () => {
+    overlay.classList.add("hidden");
+    initializeGame();
+});
 
-            previousGameMode =
-                gameMode.value;
-
-            initializeGame();
-
-        } else {
-
-            gameMode.value =
-                previousGameMode;
-        }
-    }
-);
-
+// ==================== 游戏初始化与重置 ====================
 function initializeGame() {
-
-    aiThinking = false;
-
-    if (aiTimer) {
-
-        clearTimeout(aiTimer);
-
-        aiTimer = null;
-    }
-    history = [];
-
-    BOARD_SIZE =
-        Number(sizeSelector.value);
-
-    board = [];
-
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        board[r] = [];
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            board[r][c] = 0;
-        }
-    }
-
-    currentPlayer = 1;
+    stopAiTimer();
+    moveHistory = [];
     gameOver = false;
+    aiThinking = false;
+    currentPlayer = PLAYER_BLACK;
+    boardSize = Number(boardSizeSelect.value);
+
+    board = createEmptyBoard(boardSize);
 
     renderBoard();
     updateTurnText();
@@ -132,132 +87,105 @@ function initializeGame() {
     updateHistoryList();
 }
 
-function renderBoard() {
-
-    boardDiv.innerHTML = "";
-
-    columnLabels.innerHTML = "";
-    rowLabels.innerHTML = "";
-
-    for (let c = 0; c < BOARD_SIZE; c++) {
-
-        const label =
-            document.createElement("div");
-
-        label.classList.add("coord-label");
-
-        label.textContent =
-            letters[c];
-
-        columnLabels.appendChild(label);
-    }
-
-    for (let r = 0; r < BOARD_SIZE; r++) {
-
-        const label =
-            document.createElement("div");
-
-        label.classList.add("coord-label");
-
-        label.textContent =
-            r + 1;
-
-        rowLabels.appendChild(label);
-    }
-
-    boardDiv.style.gridTemplateColumns =
-    `repeat(${BOARD_SIZE}, 60px)`;
-
-    for (let r = 0; r < BOARD_SIZE; r++) {
-
-        for (let c = 0; c < BOARD_SIZE; c++) {
-
-            const cell = document.createElement("div");
-
-            cell.classList.add("cell");
-
-            if (
-                !gameOver &&
-                isLegal(r, c, currentPlayer)
-            ) {
-
-                cell.classList.add("legal-move");
-
-                cell.addEventListener("mouseenter", () => {
-
-                    cell.classList.add(
-                        currentPlayer === 1
-                        ? "preview-black"
-                        : "preview-white"
-                    );
-                });
-
-                cell.addEventListener("mouseleave", () => {
-
-                    cell.classList.remove(
-                        "preview-black",
-                        "preview-white"
-                    );
-                });
-            }
-
-            // 高亮合法位置
-            if (
-                !gameOver &&
-                isLegal(r, c, currentPlayer)
-            ) {
-                cell.classList.add("legal-move");
-            }
-
-            cell.addEventListener("click", () => {
-                handleMove(r, c);
-            });
-
-            if (board[r][c] !== 0) {
-
-                const piece =
-                    document.createElement("div");
-
-                piece.classList.add("piece");
-
-                if (board[r][c] === 1) {
-                    piece.classList.add("black");
-                }
-                else {
-                    piece.classList.add("white");
-                }
-
-                cell.appendChild(piece);
-            }
-
-            boardDiv.appendChild(cell);
+function createEmptyBoard(size) {
+    const newBoard = [];
+    for (let row = 0; row < size; row++) {
+        newBoard[row] = [];
+        for (let col = 0; col < size; col++) {
+            newBoard[row][col] = 0;
         }
-    }    
+    }
+    return newBoard;
 }
 
+// ==================== 棋盘渲染 ====================
+function renderBoard() {
+    boardDiv.innerHTML = "";
+    columnLabelsDiv.innerHTML = "";
+    rowLabelsDiv.innerHTML = "";
+
+    renderColumnLabels();
+    renderRowLabels();
+
+    boardDiv.style.gridTemplateColumns = `repeat(${boardSize}, 60px)`;
+
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            const cell = createCell(row, col);
+            boardDiv.appendChild(cell);
+        }
+    }
+}
+
+function renderColumnLabels() {
+    for (let col = 0; col < boardSize; col++) {
+        const label = document.createElement("div");
+        label.classList.add("coord-label");
+        label.textContent = LETTERS[col];
+        columnLabelsDiv.appendChild(label);
+    }
+}
+
+function renderRowLabels() {
+    for (let row = 0; row < boardSize; row++) {
+        const label = document.createElement("div");
+        label.classList.add("coord-label");
+        label.textContent = row + 1;
+        rowLabelsDiv.appendChild(label);
+    }
+}
+
+function createCell(row, col) {
+    const cell = document.createElement("div");
+    cell.classList.add("cell");
+
+    const isLegalMove = !gameOver && isLegal(row, col, currentPlayer);
+    if (isLegalMove) {
+        cell.classList.add("legal-move");
+        addHoverPreview(cell);
+    }
+
+    cell.addEventListener("click", () => handleMove(row, col));
+
+    const pieceOwner = board[row][col];
+    if (pieceOwner !== 0) {
+        cell.appendChild(createPiece(pieceOwner));
+    }
+
+    return cell;
+}
+
+function addHoverPreview(cell) {
+    const previewClass = currentPlayer === PLAYER_BLACK
+        ? "preview-black"
+        : "preview-white";
+
+    cell.addEventListener("mouseenter", () => {
+        cell.classList.add(previewClass);
+    });
+
+    cell.addEventListener("mouseleave", () => {
+        cell.classList.remove(previewClass);
+    });
+}
+
+function createPiece(player) {
+    const piece = document.createElement("div");
+    piece.classList.add("piece");
+    piece.classList.add(player === PLAYER_BLACK ? "piece-black" : "piece-white");
+    return piece;
+}
+
+// ==================== 核心游戏逻辑 ====================
 function handleMove(row, col) {
-
-    if (aiThinking) return;
-    if (gameOver) return;
-
+    if (aiThinking || gameOver) return;
     if (!isLegal(row, col, currentPlayer)) {
         alert("这里不能下！");
         return;
     }
 
-    history.push({
-        row,
-        col,
-        player: currentPlayer
-    });
-
-    board[row][col] = currentPlayer;
-
-    // 切换玩家
-    currentPlayer =
-        currentPlayer === 1
-        ? 2
-        : 1;
+    placePiece(row, col, currentPlayer);
+    currentPlayer = getOpponent(currentPlayer);
 
     renderBoard();
     updateTurnText();
@@ -265,49 +193,29 @@ function handleMove(row, col) {
     updateHistoryList();
 
     checkGameEnd();
+    triggerAiIfNeeded();
+}
 
-    if (
-        !gameOver &&
-        gameMode.value === "ai" &&
-        currentPlayer === 2
-    ) {
+function placePiece(row, col, player) {
+    moveHistory.push({ row, col, player });
+    board[row][col] = player;
+}
 
-        aiThinking = true;
-
-        aiTimer = setTimeout(
-            makeRandomAIMove,
-            300
-        );
-    }
+function getOpponent(player) {
+    return player === PLAYER_BLACK ? PLAYER_WHITE : PLAYER_BLACK;
 }
 
 function isLegal(row, col, player) {
+    if (board[row][col] !== 0) return false;
 
-    if (board[row][col] !== 0) {
-        return false;
-    }
+    const opponent = getOpponent(player);
 
-    const opponent = player === 1 ? 2 : 1;
+    for (const [deltaRow, deltaCol] of DIRECTIONS) {
+        const neighborRow = row + deltaRow;
+        const neighborCol = col + deltaCol;
 
-    const directions = [
-        [-1, 0],
-        [1, 0],
-        [0, -1],
-        [0, 1]
-    ];
-
-    for (const [dr, dc] of directions) {
-
-        const nr = row + dr;
-        const nc = col + dc;
-
-        if (
-            nr >= 0 &&
-            nr < BOARD_SIZE &&
-            nc >= 0 &&
-            nc < BOARD_SIZE
-        ) {
-            if (board[nr][nc] === opponent) {
+        if (isInsideBoard(neighborRow, neighborCol)) {
+            if (board[neighborRow][neighborCol] === opponent) {
                 return false;
             }
         }
@@ -316,200 +224,147 @@ function isLegal(row, col, player) {
     return true;
 }
 
+function isInsideBoard(row, col) {
+    return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
+}
+
 function hasLegalMove(player) {
-
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-
-            if (isLegal(r, c, player)) {
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (isLegal(row, col, player)) {
                 return true;
             }
         }
     }
-
     return false;
 }
 
-function checkGameEnd() {
-
-    const currentCanMove = hasLegalMove(currentPlayer);
-
-    // 当前玩家还能下
-    if (currentCanMove) {
-        return;
+function countLegalMoves(player) {
+    let count = 0;
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (isLegal(row, col, player)) {
+                count++;
+            }
+        }
     }
+    return count;
+}
 
-    const opponent = currentPlayer === 1 ? 2 : 1;
+function getLegalMoves(player) {
+    const moves = [];
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (isLegal(row, col, player)) {
+                moves.push({ row, col });
+            }
+        }
+    }
+    return moves;
+}
+
+function checkGameEnd() {
+    if (hasLegalMove(currentPlayer)) return;
+
+    const opponent = getOpponent(currentPlayer);
     const opponentCanMove = hasLegalMove(opponent);
 
     gameOver = true;
 
     if (opponentCanMove) {
-
-        const winner =
-            opponent === 1 ? "黑棋" : "白棋";
-
-        turnText.textContent =
-            `游戏结束：${winner}获胜！`;
-
-        showResult(`${winner}获胜！`);
-    }
-    else {
-
-        turnText.textContent =
-            "游戏结束：平局！";
-
+        const winnerName = PLAYER_NAMES[opponent];
+        turnText.textContent = `游戏结束：${winnerName}获胜！`;
+        showResult(`${winnerName}获胜！`);
+    } else {
+        turnText.textContent = "游戏结束：平局！";
         showResult("平局！");
     }
 }
 
-function updateTurnText() {
-
-    turnText.textContent =
-        currentPlayer === 1
-        ? "当前玩家：⚫ 黑棋"
-        : "当前玩家：⚪ 白棋";
-
-    const blackMoves =
-        countLegalMoves(1);
-
-    const whiteMoves =
-        countLegalMoves(2);
-
-    moveCountText.textContent =
-        `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
-}
-
-function countLegalMoves(player) {
-
-    let count = 0;
-
-    for (let r = 0; r < BOARD_SIZE; r++) {
-
-        for (let c = 0; c < BOARD_SIZE; c++) {
-
-            if (isLegal(r, c, player)) {
-                count++;
-            }
-        }
+function triggerAiIfNeeded() {
+    if (gameOver || gameModeSelect.value !== "ai" || currentPlayer !== PLAYER_WHITE) {
+        return;
     }
 
-    return count;
+    aiThinking = true;
+    aiTimer = setTimeout(makeAiMove, AI_DELAY_MS);
 }
 
+function stopAiTimer() {
+    if (aiTimer) {
+        clearTimeout(aiTimer);
+        aiTimer = null;
+    }
+}
+
+// ==================== 悔棋 ====================
 function undoMove() {
+    if (moveHistory.length === 0) return;
 
-    if (
-        gameMode.value === "ai"
-    ) {
-
-        for (
-            let i = 0;
-            i < 2;
-            i++
-        ) {
-
-            if (
-                history.length === 0
-            ) break;
-
-            const lastMove =
-                history.pop();
-
-            board[
-                lastMove.row
-            ][
-                lastMove.col
-            ] = 0;
-        }
-
-        currentPlayer = 1;
-
+    if (gameModeSelect.value === "ai") {
+        undoAiSideMoves();
     } else {
-        if (history.length === 0) {
-            return;
-        }
-
-        const lastMove = history.pop();
-
-        board[lastMove.row][lastMove.col] = 0;
-
-        currentPlayer = lastMove.player;
-
-        gameOver = false;
-
-        renderBoard();
-        updateTurnText();
-        updateEvaluation();
-        updateHistoryList();
+        undoLastMove();
     }
+
+    gameOver = false;
+    renderBoard();
+    updateTurnText();
+    updateEvaluation();
+    updateHistoryList();
 }
 
-function showResult(text) {
+function undoAiSideMoves() {
+    const movesToUndo = Math.min(2, moveHistory.length);
+    for (let i = 0; i < movesToUndo; i++) {
+        const lastMove = moveHistory.pop();
+        board[lastMove.row][lastMove.col] = 0;
+    }
+    currentPlayer = PLAYER_BLACK;
+}
 
-    resultText.textContent = text;
+function undoLastMove() {
+    const lastMove = moveHistory.pop();
+    board[lastMove.row][lastMove.col] = 0;
+    currentPlayer = lastMove.player;
+}
 
-    overlay.classList.remove("hidden");
+// ==================== UI 更新 ====================
+function updateTurnText() {
+    const playerSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
+    const blackMoves = countLegalMoves(PLAYER_BLACK);
+    const whiteMoves = countLegalMoves(PLAYER_WHITE);
+
+    turnText.textContent = `当前玩家：${playerSymbol} ${PLAYER_NAMES[currentPlayer]}`;
+    moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
 }
 
 function updateEvaluation() {
-
-    const blackMoves =
-        countLegalMoves(1);
-
-    const whiteMoves =
-        countLegalMoves(2);
-
-    const diff =
-        blackMoves - whiteMoves;
+    const blackMoves = countLegalMoves(PLAYER_BLACK);
+    const whiteMoves = countLegalMoves(PLAYER_WHITE);
+    const diff = blackMoves - whiteMoves;
 
     let text = "";
-
     if (diff > 5) {
-
-        text =
-            `局势评估：⚫ 黑棋优势 (+${diff})`;
-
+        text = `局势评估：⚫ 黑棋优势 (+${diff})`;
     } else if (diff < -5) {
-
-        text =
-            `局势评估：⚪ 白棋优势 (+${-diff})`;
-
+        text = `局势评估：⚪ 白棋优势 (+${-diff})`;
     } else {
-
-        text =
-            "局势评估：均势";
+        text = "局势评估：均势";
     }
 
-    evaluationText.textContent =
-        text;
+    evaluationText.textContent = text;
 }
 
 function updateHistoryList() {
-
     historyList.innerHTML = "";
 
-    const letters =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-    history.forEach((move, index) => {
-
-        const li =
-            document.createElement("li");
-
-        const player =
-            move.player === 1
-            ? "黑"
-            : "白";
-
-        const coord =
-            letters[move.col]
-            + (move.row + 1);
-
-        li.textContent =
-            `${player} ${coord}`;
-
-        historyList.appendChild(li);
+    moveHistory.forEach((move) => {
+        const listItem = document.createElement("li");
+        const playerName = move.player === PLAYER_BLACK ? "黑" : "白";
+        const coordinate = LETTERS[move.col] + (move.row + 1);
+        listItem.textContent = `${playerName} ${coordinate}`;
+        historyList.appendChild(listItem);
     });
 
     historyList.scrollTo({
@@ -518,88 +373,53 @@ function updateHistoryList() {
     });
 }
 
-function getLegalMoves(player) {
-
-    const moves = [];
-
-    for (let row = 0; row < BOARD_SIZE; row++) {
-
-        for (let col = 0; col < BOARD_SIZE; col++) {
-
-            if (
-                isLegal(
-                    row,
-                    col,
-                    player
-                )
-            ) {
-
-                moves.push({
-                    row,
-                    col
-                });
-            }
-        }
-    }
-
-    return moves;
+function showResult(text) {
+    resultText.textContent = text;
+    overlay.classList.remove("hidden");
 }
 
-function makeRandomAIMove() {
-
-    if (
-        gameOver ||
-        gameMode.value !== "ai"
-    ) {
+// ==================== AI ====================
+function makeAiMove() {
+    if (gameOver || gameModeSelect.value !== "ai") {
+        aiThinking = false;
         return;
     }
 
-    const legalMoves =
-        getLegalMoves(2);
-
+    const legalMoves = getLegalMoves(PLAYER_WHITE);
     if (legalMoves.length === 0) {
         aiThinking = false;
         return;
     }
 
+    const bestMove = findBestMoveByGreedy(legalMoves);
+    aiThinking = false;
+
+    handleMove(bestMove.row, bestMove.col);
+}
+
+function findBestMoveByGreedy(moves) {
     let bestMove = null;
     let bestScore = -Infinity;
 
-    for (let move of legalMoves) {
-
-        const score =
-            evaluateMove(move.row, move.col);
-
+    for (const move of moves) {
+        const score = evaluateMove(move.row, move.col);
         if (score > bestScore) {
             bestScore = score;
             bestMove = move;
         }
     }
 
-    aiThinking = false;
-
-    handleMove(
-        bestMove.row,
-        bestMove.col
-    );
+    return bestMove;
 }
 
 function evaluateMove(row, col) {
-
-    // 1. 模拟落子（AI是白棋=2）
-    board[row][col] = 2;
-
-    // 2. 计算AI可走位置
-    const aiMoves =
-        getLegalMoves(2).length;
-
-    // 3. 计算玩家可走位置
-    const playerMoves =
-        getLegalMoves(1).length;
-
-    // 4. 撤销模拟
+    board[row][col] = PLAYER_WHITE;
+    const aiMoves = getLegalMoves(PLAYER_WHITE).length;
+    const playerMoves = getLegalMoves(PLAYER_BLACK).length;
     board[row][col] = 0;
 
-    // 5. 返回评分（核心）
     return aiMoves - playerMoves;
 }
+
+// ==================== 启动游戏 ====================
+initializeGame();

@@ -7,14 +7,11 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
     <h1>我的棋类游戏</h1>
 
     <div id="topBar">
         <p>
-            <label for="boardSize">
-                棋盘大小：
-            </label>
+            <label for="boardSize">棋盘大小：</label>
             <select id="boardSize">
                 <option value="6">6 × 6</option>
                 <option value="8" selected>8 × 8</option>
@@ -23,82 +20,48 @@
             </select>
         </p>
 
-        <button id="restart">重新开始</button>
+        <button id="restartBtn">重新开始</button>
         <button id="undoBtn">悔棋</button>
 
-        <label>
-            模式：
-        </label>
-
+        <label for="gameMode">模式：</label>
         <select id="gameMode">
-            <option value="pvp">
-                双人对战
-            </option>
-            <option value="ai">
-                人机对战
-            </option>
+            <option value="pvp">双人对战</option>
+            <option value="ai">人机对战</option>
         </select>
-        
     </div>
-    
+
     <div id="mainArea">
-
         <div id="boardContainer">
-
             <div id="gameArea">
-
                 <div id="columnLabels"></div>
-
                 <div id="boardRow">
-
                     <div id="rowLabels"></div>
-
                     <div id="board"></div>
-
                 </div>
-
             </div>
-
         </div>
-        
+
         <div id="sidePanel">
-
-            <div id="panelCard">
-
-                <p id="turn">当前玩家：黑棋</p>
-
-                <p id="moveCount"></p>
-                <p id="evaluation"></p>
+            <div class="panelCard">
+                <p id="turnText">当前玩家：黑棋</p>
+                <p id="moveCountText"></p>
+                <p id="evaluationText"></p>
 
                 <div id="historyPanel">
-
                     <h3>棋谱记录</h3>
-
                     <ol id="historyList"></ol>
-
                 </div>
-
             </div>
-    
         </div>
-
     </div>
-    
+
     <div id="overlay" class="hidden">
-
         <div id="resultBox">
-
             <h2 id="resultText"></h2>
-
-            <button id="playAgain">
-                再来一局
-            </button>
-
+            <button id="playAgainBtn">再来一局</button>
         </div>
-
     </div>
 
     <script src="script.js"></script>
-
 </body>
 </html>
