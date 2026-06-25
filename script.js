@@ -6,7 +6,17 @@ const DIRECTIONS = [
     [0, -1],
     [0, 1]
 ];
+const NEIGHBOR_DIRECTIONS = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1], [0, 1],
+    [1, -1], [1, 0], [1, 1]
+];
+
 const AI_DELAY_MS = 300;
+
+const WEIGHT_MOBILITY = 1.0;
+const WEIGHT_CENTER = 0.5;
+const WEIGHT_GROUP = 0.4;
 
 const PLAYER_BLACK = 1;
 const PLAYER_WHITE = 2;
@@ -391,13 +401,13 @@ function makeAiMove() {
         return;
     }
 
-    const bestMove = findBestMoveByGreedy(legalMoves);
+    const bestMove = findBestMove(legalMoves);
     aiThinking = false;
 
     handleMove(bestMove.row, bestMove.col);
 }
 
-function findBestMoveByGreedy(moves) {
+function findBestMove(moves) {
     let bestMove = null;
     let bestScore = -Infinity;
 
@@ -418,7 +428,39 @@ function evaluateMove(row, col) {
     const playerMoves = getLegalMoves(PLAYER_BLACK).length;
     board[row][col] = 0;
 
-    return aiMoves - playerMoves;
+    const mobilityScore = aiMoves - playerMoves;
+    const centerScore = getCenterScore(row, col);
+    const groupScore = getGroupScore(row, col, PLAYER_WHITE);
+
+    return WEIGHT_MOBILITY * mobilityScore
+        + WEIGHT_CENTER * centerScore
+        + WEIGHT_GROUP * groupScore;
+}
+
+function getCenterScore(row, col) {
+    const centerRow = (boardSize - 1) / 2;
+    const centerCol = (boardSize - 1) / 2;
+    const maxDistance = centerRow + centerCol;
+    const distance = Math.abs(row - centerRow) + Math.abs(col - centerCol);
+
+    return maxDistance - distance;
+}
+
+function getGroupScore(row, col, player) {
+    let friendlyCount = 0;
+
+    for (const [deltaRow, deltaCol] of NEIGHBOR_DIRECTIONS) {
+        const neighborRow = row + deltaRow;
+        const neighborCol = col + deltaCol;
+
+        if (isInsideBoard(neighborRow, neighborCol)) {
+            if (board[neighborRow][neighborCol] === player) {
+                friendlyCount++;
+            }
+        }
+    }
+
+    return friendlyCount;
 }
 
 // ==================== 启动游戏 ====================
