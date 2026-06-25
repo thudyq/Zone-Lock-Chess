@@ -51,6 +51,19 @@ const aiDifficultyLabel = document.getElementById("aiDifficultyLabel");
 const restartBtn = document.getElementById("restartBtn");
 const undoBtn = document.getElementById("undoBtn");
 const playAgainBtn = document.getElementById("playAgainBtn");
+const exportResultBtn = document.getElementById("exportResultBtn");
+
+const exportBtn = document.getElementById("exportBtn");
+const importBtn = document.getElementById("importBtn");
+const importFile = document.getElementById("importFile");
+const replayPanel = document.getElementById("replayPanel");
+const replayFirstBtn = document.getElementById("replayFirst");
+const replayPrevBtn = document.getElementById("replayPrev");
+const replayPlayPauseBtn = document.getElementById("replayPlayPause");
+const replayNextBtn = document.getElementById("replayNext");
+const replayLastBtn = document.getElementById("replayLast");
+const replaySpeedSelect = document.getElementById("replaySpeedSelect");
+const resumeGameBtn = document.getElementById("resumeGameBtn");
 
 // ==================== 游戏状态 ====================
 let boardSize = 8;
@@ -63,6 +76,11 @@ let aiTimer = null;
 let previousBoardSize = boardSizeSelect.value;
 let previousGameMode = gameModeSelect.value;
 let previousAiDifficulty = aiDifficultySelect.value;
+
+let isReplayMode = false;
+let replayIndex = 0;
+let isReplayPlaying = false;
+let replayTimer = null;
 
 // ==================== 事件监听 ====================
 restartBtn.addEventListener("click", initializeGame);
@@ -101,9 +119,26 @@ playAgainBtn.addEventListener("click", () => {
     initializeGame();
 });
 
+exportResultBtn.addEventListener("click", exportRecord);
+
+exportBtn.addEventListener("click", exportRecord);
+importBtn.addEventListener("click", () => importFile.click());
+importFile.addEventListener("change", importRecord);
+
+replayFirstBtn.addEventListener("click", replayFirst);
+replayPrevBtn.addEventListener("click", replayPrev);
+replayPlayPauseBtn.addEventListener("click", toggleReplayPlay);
+replayNextBtn.addEventListener("click", replayNext);
+replayLastBtn.addEventListener("click", replayLast);
+replaySpeedSelect.addEventListener("change", handleReplaySpeedChange);
+resumeGameBtn.addEventListener("click", resumeGameFromReplay);
+
 // ==================== 游戏初始化与重置 ====================
 function initializeGame() {
     stopAiTimer();
+    stopReplayTimer();
+    exitReplayMode();
+
     moveHistory = [];
     gameOver = false;
     aiThinking = false;
@@ -117,6 +152,8 @@ function initializeGame() {
     updateEvaluation();
     updateHistoryList();
     updateAiDifficultyVisibility();
+    updateReplayControls();
+    overlay.classList.add("hidden");
 }
 
 function createEmptyBoard(size) {
@@ -337,7 +374,7 @@ function stopAiTimer() {
 
 // ==================== 悔棋 ====================
 function undoMove() {
-    if (moveHistory.length === 0) return;
+    if (isReplayMode || moveHistory.length === 0) return;
 
     if (gameModeSelect.value === "ai") {
         undoAiSideMoves();
@@ -369,6 +406,12 @@ function undoLastMove() {
 
 // ==================== UI 更新 ====================
 function updateTurnText() {
+    if (isReplayMode) {
+        turnText.textContent = `回放中：第 ${replayIndex} / ${moveHistory.length} 步`;
+        moveCountText.textContent = "";
+        return;
+    }
+
     const playerSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
     const blackMoves = countLegalMoves(PLAYER_BLACK);
     const whiteMoves = countLegalMoves(PLAYER_WHITE);
@@ -397,18 +440,30 @@ function updateEvaluation() {
 function updateHistoryList() {
     historyList.innerHTML = "";
 
-    moveHistory.forEach((move) => {
+    moveHistory.forEach((move, index) => {
         const listItem = document.createElement("li");
         const playerName = move.player === PLAYER_BLACK ? "黑" : "白";
         const coordinate = LETTERS[move.col] + (move.row + 1);
         listItem.textContent = `${playerName} ${coordinate}`;
+
+        if (isReplayMode && index === replayIndex - 1) {
+            listItem.classList.add("current-replay-move");
+        }
+
         historyList.appendChild(listItem);
     });
 
-    historyList.scrollTo({
-        top: historyList.scrollHeight,
-        behavior: "smooth"
-    });
+    if (isReplayMode && replayIndex > 0) {
+        const currentItem = historyList.children[replayIndex - 1];
+        if (currentItem) {
+            currentItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+    } else {
+        historyList.scrollTo({
+            top: historyList.scrollHeight,
+            behavior: "smooth"
+        });
+    }
 }
 
 function showResult(text) {
@@ -627,6 +682,214 @@ function getBoardGroupScore(player) {
     }
 
     return score / 2;
+}
+
+// ==================== 棋谱系统 ====================
+function exportRecord() {
+    const record = {
+        version: "1.0",
+        boardSize: boardSize,
+        moves: moveHistory.map((move) => ({ ...move }))
+    };
+
+    const blob = new Blob([JSON.stringify(record, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `棋谱_${boardSize}x${boardSize}_${dateStr}.json`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function importRecord(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const record = JSON.parse(e.target.result);
+            if (validateRecord(record)) {
+                enterReplayMode(record);
+            } else {
+                alert("棋谱文件格式不正确！");
+            }
+        } catch (error) {
+            alert("无法解析棋谱文件！");
+        }
+        event.target.value = "";
+    };
+    reader.readAsText(file);
+}
+
+function validateRecord(record) {
+    return record
+        && record.version === "1.0"
+        && typeof record.boardSize === "number"
+        && [6, 8, 10, 12].includes(record.boardSize)
+        && Array.isArray(record.moves)
+        && record.moves.every((move) =>
+            typeof move.row === "number"
+            && typeof move.col === "number"
+            && typeof move.player === "number"
+            && move.row >= 0 && move.row < record.boardSize
+            && move.col >= 0 && move.col < record.boardSize
+            && (move.player === PLAYER_BLACK || move.player === PLAYER_WHITE)
+        );
+}
+
+function enterReplayMode(record) {
+    stopAiTimer();
+    stopReplayTimer();
+
+    isReplayMode = true;
+    isReplayPlaying = false;
+    replayIndex = 0;
+
+    boardSize = record.boardSize;
+    boardSizeSelect.value = String(boardSize);
+    moveHistory = record.moves.map((move) => ({ ...move }));
+
+    applyReplayIndex(0);
+    updateReplayControls();
+}
+
+function exitReplayMode() {
+    if (!isReplayMode) return;
+
+    isReplayMode = false;
+    isReplayPlaying = false;
+    stopReplayTimer();
+
+    applyReplayIndex(moveHistory.length);
+    checkGameEnd();
+    updateReplayControls();
+}
+
+function applyReplayIndex(index) {
+    replayIndex = Math.max(0, Math.min(index, moveHistory.length));
+
+    board = createEmptyBoard(boardSize);
+    for (let i = 0; i < replayIndex; i++) {
+        const move = moveHistory[i];
+        board[move.row][move.col] = move.player;
+    }
+
+    currentPlayer = replayIndex % 2 === 0 ? PLAYER_BLACK : PLAYER_WHITE;
+    gameOver = isReplayMode;
+
+    renderBoard();
+    updateTurnText();
+    updateEvaluation();
+    updateHistoryList();
+}
+
+function replayFirst() {
+    if (!isReplayMode) return;
+    pauseReplay();
+    applyReplayIndex(0);
+}
+
+function replayPrev() {
+    if (!isReplayMode) return;
+    pauseReplay();
+    applyReplayIndex(replayIndex - 1);
+}
+
+function replayNext() {
+    if (!isReplayMode) return;
+    pauseReplay();
+    applyReplayIndex(replayIndex + 1);
+}
+
+function replayLast() {
+    if (!isReplayMode) return;
+    pauseReplay();
+    applyReplayIndex(moveHistory.length);
+}
+
+function toggleReplayPlay() {
+    if (!isReplayMode) return;
+
+    if (isReplayPlaying) {
+        pauseReplay();
+    } else {
+        playReplay();
+    }
+}
+
+function playReplay() {
+    if (!isReplayMode) return;
+
+    if (replayIndex >= moveHistory.length) {
+        replayIndex = 0;
+        applyReplayIndex(0);
+    }
+
+    isReplayPlaying = true;
+    updateReplayControls();
+    scheduleReplayStep();
+}
+
+function scheduleReplayStep() {
+    if (!isReplayPlaying || !isReplayMode) return;
+
+    const speed = Number(replaySpeedSelect.value);
+    replayTimer = setTimeout(() => {
+        if (replayIndex < moveHistory.length) {
+            applyReplayIndex(replayIndex + 1);
+            scheduleReplayStep();
+        } else {
+            pauseReplay();
+        }
+    }, speed);
+}
+
+function pauseReplay() {
+    isReplayPlaying = false;
+    stopReplayTimer();
+    updateReplayControls();
+}
+
+function stopReplayTimer() {
+    if (replayTimer) {
+        clearTimeout(replayTimer);
+        replayTimer = null;
+    }
+}
+
+function handleReplaySpeedChange() {
+    if (isReplayPlaying) {
+        stopReplayTimer();
+        scheduleReplayStep();
+    }
+}
+
+function updateReplayControls() {
+    if (isReplayMode) {
+        replayPanel.classList.remove("hidden");
+    } else {
+        replayPanel.classList.add("hidden");
+    }
+
+    replayPlayPauseBtn.textContent = isReplayPlaying ? "⏸" : "▶";
+
+    replayFirstBtn.disabled = replayIndex === 0;
+    replayPrevBtn.disabled = replayIndex === 0;
+    replayNextBtn.disabled = replayIndex === moveHistory.length;
+    replayLastBtn.disabled = replayIndex === moveHistory.length;
+}
+
+function resumeGameFromReplay() {
+    if (!isReplayMode) return;
+
+    moveHistory = moveHistory.slice(0, replayIndex);
+    exitReplayMode();
 }
 
 // ==================== 启动游戏 ====================

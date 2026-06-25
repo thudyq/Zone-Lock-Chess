@@ -181,7 +181,9 @@ select {
 }
 
 /* 棋谱记录 */
-#historyPanel {
+#historyPanel,
+#recordPanel,
+#replayPanel {
     width: 300px;
     margin: 20px auto;
     text-align: left;
@@ -190,7 +192,40 @@ select {
 #historyList {
     max-height: 300px;
     margin: 0;
+    padding-left: 20px;
     overflow-y: auto;
+}
+
+#historyList li.current-replay-move {
+    background-color: #fff3cd;
+    font-weight: bold;
+}
+
+#recordPanel button,
+#replayPanel button,
+#replayPanel select {
+    margin: 4px 4px 4px 0;
+}
+
+#replayControls {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+#replayControls button {
+    flex: 1;
+    min-width: 40px;
+}
+
+#replayControls button:disabled,
+#replaySpeedSelect:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#replaySpeed {
+    margin-bottom: 10px;
 }
 
 /* 结束弹窗 */
@@ -211,6 +246,14 @@ select {
     background: #ffffff;
     border-radius: 12px;
     text-align: center;
+}
+
+#resultActions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 20px;
 }
 
 /* 工具类 */

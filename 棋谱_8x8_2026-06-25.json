@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "boardSize": 8,
+  "moves": [
+    {
+      "row": 1,
+      "col": 2,
+      "player": 1
+    },
+    {
+      "row": 2,
+      "col": 0,
+      "player": 2
+    },
+    {
+      "row": 4,
+      "col": 2,
+      "player": 1
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "player": 2
+    }
+  ]
+}
