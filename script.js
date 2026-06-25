@@ -25,6 +25,14 @@ const PLAYER_NAMES = {
     [PLAYER_WHITE]: "白棋"
 };
 
+const DIFFICULTY_EASY = "easy";
+const DIFFICULTY_MEDIUM = "medium";
+const DIFFICULTY_HARD = "hard";
+const DIFFICULTY_EXPERT = "expert";
+
+const SEARCH_DEPTH_HARD = 2;
+const SEARCH_DEPTH_EXPERT = 3;
+
 // ==================== DOM 元素引用 ====================
 const boardDiv = document.getElementById("board");
 const columnLabelsDiv = document.getElementById("columnLabels");
@@ -38,6 +46,8 @@ const resultText = document.getElementById("resultText");
 
 const boardSizeSelect = document.getElementById("boardSize");
 const gameModeSelect = document.getElementById("gameMode");
+const aiDifficultySelect = document.getElementById("aiDifficulty");
+const aiDifficultyLabel = document.getElementById("aiDifficultyLabel");
 const restartBtn = document.getElementById("restartBtn");
 const undoBtn = document.getElementById("undoBtn");
 const playAgainBtn = document.getElementById("playAgainBtn");
@@ -52,6 +62,7 @@ let aiThinking = false;
 let aiTimer = null;
 let previousBoardSize = boardSizeSelect.value;
 let previousGameMode = gameModeSelect.value;
+let previousAiDifficulty = aiDifficultySelect.value;
 
 // ==================== 事件监听 ====================
 restartBtn.addEventListener("click", initializeGame);
@@ -70,6 +81,16 @@ gameModeSelect.addEventListener("change", () => {
         initializeGame();
     } else {
         gameModeSelect.value = previousGameMode;
+    }
+    updateAiDifficultyVisibility();
+});
+
+aiDifficultySelect.addEventListener("change", () => {
+    const message = "切换 AI 难度将改变后续 AI 的落子策略，是否继续？";
+    if (confirm(message)) {
+        previousAiDifficulty = aiDifficultySelect.value;
+    } else {
+        aiDifficultySelect.value = previousAiDifficulty;
     }
 });
 
@@ -95,6 +116,7 @@ function initializeGame() {
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
+    updateAiDifficultyVisibility();
 }
 
 function createEmptyBoard(size) {
@@ -106,6 +128,12 @@ function createEmptyBoard(size) {
         }
     }
     return newBoard;
+}
+
+function updateAiDifficultyVisibility() {
+    const isAiMode = gameModeSelect.value === "ai";
+    aiDifficultySelect.disabled = !isAiMode;
+    aiDifficultyLabel.classList.toggle("disabled", !isAiMode);
 }
 
 // ==================== 棋盘渲染 ====================
@@ -401,10 +429,32 @@ function makeAiMove() {
         return;
     }
 
-    const bestMove = findBestMove(legalMoves);
-    aiThinking = false;
+    const difficulty = aiDifficultySelect.value;
+    let bestMove;
 
+    switch (difficulty) {
+        case DIFFICULTY_EASY:
+            bestMove = getRandomMove(legalMoves);
+            break;
+        case DIFFICULTY_HARD:
+            bestMove = findBestMoveMinimax(SEARCH_DEPTH_HARD);
+            break;
+        case DIFFICULTY_EXPERT:
+            bestMove = findBestMoveMinimax(SEARCH_DEPTH_EXPERT);
+            break;
+        case DIFFICULTY_MEDIUM:
+        default:
+            bestMove = findBestMove(legalMoves);
+            break;
+    }
+
+    aiThinking = false;
     handleMove(bestMove.row, bestMove.col);
+}
+
+function getRandomMove(moves) {
+    const index = Math.floor(Math.random() * moves.length);
+    return moves[index];
 }
 
 function findBestMove(moves) {
@@ -437,6 +487,94 @@ function evaluateMove(row, col) {
         + WEIGHT_GROUP * groupScore;
 }
 
+function findBestMoveMinimax(depth) {
+    const legalMoves = getLegalMoves(PLAYER_WHITE);
+    let bestMove = legalMoves[0];
+    let bestScore = -Infinity;
+
+    for (const move of legalMoves) {
+        board[move.row][move.col] = PLAYER_WHITE;
+        const score = minimax(depth - 1, -Infinity, Infinity, false);
+        board[move.row][move.col] = 0;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = move;
+        }
+    }
+
+    return bestMove;
+}
+
+function minimax(depth, alpha, beta, isMaximizingPlayer) {
+    const player = isMaximizingPlayer ? PLAYER_WHITE : PLAYER_BLACK;
+
+    if (depth === 0 || !hasLegalMove(player)) {
+        return evaluateBoard();
+    }
+
+    const legalMoves = getLegalMoves(player);
+
+    if (isMaximizingPlayer) {
+        let maxScore = -Infinity;
+
+        for (const move of legalMoves) {
+            board[move.row][move.col] = PLAYER_WHITE;
+            const score = minimax(depth - 1, alpha, beta, false);
+            board[move.row][move.col] = 0;
+
+            maxScore = Math.max(maxScore, score);
+            alpha = Math.max(alpha, score);
+
+            if (beta <= alpha) {
+                break;
+            }
+        }
+
+        return maxScore;
+    }
+
+    let minScore = Infinity;
+
+    for (const move of legalMoves) {
+        board[move.row][move.col] = PLAYER_BLACK;
+        const score = minimax(depth - 1, alpha, beta, true);
+        board[move.row][move.col] = 0;
+
+        minScore = Math.min(minScore, score);
+        beta = Math.min(beta, score);
+
+        if (beta <= alpha) {
+            break;
+        }
+    }
+
+    return minScore;
+}
+
+function evaluateBoard() {
+    const whiteMoves = countLegalMoves(PLAYER_WHITE);
+    const blackMoves = countLegalMoves(PLAYER_BLACK);
+
+    if (whiteMoves === 0 && blackMoves === 0) {
+        return 0;
+    }
+    if (whiteMoves === 0) {
+        return -10000;
+    }
+    if (blackMoves === 0) {
+        return 10000;
+    }
+
+    const mobilityScore = whiteMoves - blackMoves;
+    const centerScore = getBoardCenterScore(PLAYER_WHITE) - getBoardCenterScore(PLAYER_BLACK);
+    const groupScore = getBoardGroupScore(PLAYER_WHITE) - getBoardGroupScore(PLAYER_BLACK);
+
+    return WEIGHT_MOBILITY * mobilityScore
+        + WEIGHT_CENTER * centerScore
+        + WEIGHT_GROUP * groupScore;
+}
+
 function getCenterScore(row, col) {
     const centerRow = (boardSize - 1) / 2;
     const centerCol = (boardSize - 1) / 2;
@@ -444,6 +582,20 @@ function getCenterScore(row, col) {
     const distance = Math.abs(row - centerRow) + Math.abs(col - centerCol);
 
     return maxDistance - distance;
+}
+
+function getBoardCenterScore(player) {
+    let score = 0;
+
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (board[row][col] === player) {
+                score += getCenterScore(row, col);
+            }
+        }
+    }
+
+    return score;
 }
 
 function getGroupScore(row, col, player) {
@@ -461,6 +613,20 @@ function getGroupScore(row, col, player) {
     }
 
     return friendlyCount;
+}
+
+function getBoardGroupScore(player) {
+    let score = 0;
+
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (board[row][col] === player) {
+                score += getGroupScore(row, col, player);
+            }
+        }
+    }
+
+    return score / 2;
 }
 
 // ==================== 启动游戏 ====================

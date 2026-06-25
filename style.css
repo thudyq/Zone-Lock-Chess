@@ -9,9 +9,16 @@ body {
     text-align: center;
 }
 
-button {
+button,
+select {
     padding: 8px 16px;
     font-size: 16px;
+}
+
+.ai-difficulty-label.disabled,
+.ai-difficulty-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* 顶部控制栏 */
