@@ -154,6 +154,7 @@ function initializeGame() {
     updateAiDifficultyVisibility();
     updateReplayControls();
     overlay.classList.add("hidden");
+    saveGameState();
 }
 
 function createEmptyBoard(size) {
@@ -165,6 +166,77 @@ function createEmptyBoard(size) {
         }
     }
     return newBoard;
+}
+
+function saveGameState() {
+    const state = {
+        version: "1.0",
+        boardSize: boardSize,
+        moves: moveHistory.map((move) => ({ ...move })),
+        currentPlayer: currentPlayer,
+        gameOver: gameOver,
+        gameMode: gameModeSelect.value,
+        aiDifficulty: aiDifficultySelect.value
+    };
+
+    try {
+        localStorage.setItem("boardGameState", JSON.stringify(state));
+    } catch (error) {
+        // localStorage 不可用时不影响游戏
+    }
+}
+
+function loadGameState() {
+    try {
+        const saved = localStorage.getItem("boardGameState");
+        if (!saved) return false;
+
+        const state = JSON.parse(saved);
+        if (!state || typeof state.boardSize !== "number") return false;
+
+        boardSize = state.boardSize;
+        boardSizeSelect.value = String(boardSize);
+        moveHistory = (state.moves || []).map((move) => ({ ...move }));
+        currentPlayer = state.currentPlayer || PLAYER_BLACK;
+        gameOver = state.gameOver || false;
+        gameModeSelect.value = state.gameMode || "pvp";
+        aiDifficultySelect.value = state.aiDifficulty || "medium";
+
+        board = createEmptyBoard(boardSize);
+        for (const move of moveHistory) {
+            if (isInsideBoard(move.row, move.col)) {
+                board[move.row][move.col] = move.player;
+            }
+        }
+
+        renderBoard();
+        updateTurnText();
+        updateEvaluation();
+        updateHistoryList();
+        updateAiDifficultyVisibility();
+        updateReplayControls();
+
+        if (gameOver) {
+            const opponent = getOpponent(currentPlayer);
+            if (hasLegalMove(opponent)) {
+                showResult(`${PLAYER_NAMES[opponent]}获胜！`);
+            } else {
+                showResult("平局！");
+            }
+        }
+
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+function clearSavedGameState() {
+    try {
+        localStorage.removeItem("boardGameState");
+    } catch (error) {
+        // ignore
+    }
 }
 
 function updateAiDifficultyVisibility() {
@@ -269,6 +341,7 @@ function handleMove(row, col) {
 
     checkGameEnd();
     triggerAiIfNeeded();
+    saveGameState();
 }
 
 function placePiece(row, col, player) {
@@ -387,6 +460,7 @@ function undoMove() {
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
+    saveGameState();
 }
 
 function undoAiSideMoves() {
@@ -699,11 +773,16 @@ function exportRecord() {
     const dateStr = new Date().toISOString().slice(0, 10);
     link.href = url;
     link.download = `棋谱_${boardSize}x${boardSize}_${dateStr}.json`;
+    link.style.display = "none";
+    link.target = "_blank";
 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+
+    setTimeout(() => {
+        URL.revokeObjectURL(url);
+    }, 1000);
 }
 
 function importRecord(event) {
@@ -890,7 +969,10 @@ function resumeGameFromReplay() {
 
     moveHistory = moveHistory.slice(0, replayIndex);
     exitReplayMode();
+    saveGameState();
 }
 
 // ==================== 启动游戏 ====================
-initializeGame();
+if (!loadGameState()) {
+    initializeGame();
+}

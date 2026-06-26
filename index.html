@@ -20,8 +20,8 @@
             </select>
         </p>
 
-        <button id="restartBtn">重新开始</button>
-        <button id="undoBtn">悔棋</button>
+        <button type="button" id="restartBtn">重新开始</button>
+        <button type="button" id="undoBtn">悔棋</button>
 
         <label for="gameMode">模式：</label>
         <select id="gameMode">
@@ -62,19 +62,19 @@
 
                 <div id="recordPanel">
                     <h3>棋谱操作</h3>
-                    <button id="exportBtn">导出棋谱</button>
-                    <button id="importBtn">导入棋谱</button>
+                    <button type="button" id="exportBtn">导出棋谱</button>
+                    <button type="button" id="importBtn">导入棋谱</button>
                     <input type="file" id="importFile" accept=".json" class="hidden">
                 </div>
 
                 <div id="replayPanel" class="hidden">
                     <h3>回放控制</h3>
                     <div id="replayControls">
-                        <button id="replayFirst" title="开始">⏮</button>
-                        <button id="replayPrev" title="上一步">⏴</button>
-                        <button id="replayPlayPause" title="播放/暂停">▶</button>
-                        <button id="replayNext" title="下一步">⏵</button>
-                        <button id="replayLast" title="结束">⏭</button>
+                        <button type="button" id="replayFirst" title="开始">⏮</button>
+                        <button type="button" id="replayPrev" title="上一步">⏴</button>
+                        <button type="button" id="replayPlayPause" title="播放/暂停">▶</button>
+                        <button type="button" id="replayNext" title="下一步">⏵</button>
+                        <button type="button" id="replayLast" title="结束">⏭</button>
                     </div>
                     <div id="replaySpeed">
                         <label for="replaySpeedSelect">速度：</label>
@@ -84,7 +84,7 @@
                             <option value="500">快</option>
                         </select>
                     </div>
-                    <button id="resumeGameBtn">从当前步继续对弈</button>
+                    <button type="button" id="resumeGameBtn">从当前步继续对弈</button>
                 </div>
             </div>
         </div>
@@ -94,8 +94,8 @@
         <div id="resultBox">
             <h2 id="resultText"></h2>
             <div id="resultActions">
-                <button id="playAgainBtn">再来一局</button>
-                <button id="exportResultBtn">导出当前棋谱</button>
+                <button type="button" id="playAgainBtn">再来一局</button>
+                <button type="button" id="exportResultBtn">导出当前棋谱</button>
             </div>
         </div>
     </div>
