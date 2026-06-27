@@ -327,7 +327,6 @@ function createPiece(player) {
 function handleMove(row, col) {
     if (aiThinking || gameOver) return;
     if (!isLegal(row, col, currentPlayer)) {
-        alert("这里不能下！");
         return;
     }
 
