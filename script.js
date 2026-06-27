@@ -52,6 +52,7 @@ const restartBtn = document.getElementById("restartBtn");
 const undoBtn = document.getElementById("undoBtn");
 const playAgainBtn = document.getElementById("playAgainBtn");
 const exportResultBtn = document.getElementById("exportResultBtn");
+const themeToggle = document.getElementById("themeToggle");
 
 const exportBtn = document.getElementById("exportBtn");
 const importBtn = document.getElementById("importBtn");
@@ -81,6 +82,8 @@ let isReplayMode = false;
 let replayIndex = 0;
 let isReplayPlaying = false;
 let replayTimer = null;
+
+let lastPlacedPosition = null;
 
 // ==================== 事件监听 ====================
 restartBtn.addEventListener("click", initializeGame);
@@ -120,6 +123,7 @@ playAgainBtn.addEventListener("click", () => {
 });
 
 exportResultBtn.addEventListener("click", exportRecord);
+themeToggle.addEventListener("click", toggleTheme);
 
 exportBtn.addEventListener("click", exportRecord);
 importBtn.addEventListener("click", () => importFile.click());
@@ -144,6 +148,7 @@ function initializeGame() {
     aiThinking = false;
     currentPlayer = PLAYER_BLACK;
     boardSize = Number(boardSizeSelect.value);
+    lastPlacedPosition = null;
 
     board = createEmptyBoard(boardSize);
 
@@ -245,6 +250,28 @@ function updateAiDifficultyVisibility() {
     aiDifficultyLabel.classList.toggle("disabled", !isAiMode);
 }
 
+function applyTheme(theme) {
+    if (theme === "dark") {
+        document.body.classList.add("dark");
+        themeToggle.textContent = "☀";
+    } else {
+        document.body.classList.remove("dark");
+        themeToggle.textContent = "🌙";
+    }
+}
+
+function toggleTheme() {
+    const isDark = document.body.classList.contains("dark");
+    const newTheme = isDark ? "light" : "dark";
+    applyTheme(newTheme);
+    localStorage.setItem("boardGameTheme", newTheme);
+}
+
+function loadSavedTheme() {
+    const savedTheme = localStorage.getItem("boardGameTheme") || "light";
+    applyTheme(savedTheme);
+}
+
 // ==================== 棋盘渲染 ====================
 function renderBoard() {
     boardDiv.innerHTML = "";
@@ -296,7 +323,7 @@ function createCell(row, col) {
 
     const pieceOwner = board[row][col];
     if (pieceOwner !== 0) {
-        cell.appendChild(createPiece(pieceOwner));
+        cell.appendChild(createPiece(pieceOwner, row, col));
     }
 
     return cell;
@@ -316,10 +343,15 @@ function addHoverPreview(cell) {
     });
 }
 
-function createPiece(player) {
+function createPiece(player, row, col) {
     const piece = document.createElement("div");
     piece.classList.add("piece");
     piece.classList.add(player === PLAYER_BLACK ? "piece-black" : "piece-white");
+
+    if (lastPlacedPosition && lastPlacedPosition.row === row && lastPlacedPosition.col === col) {
+        piece.classList.add("piece-placed");
+    }
+
     return piece;
 }
 
@@ -346,6 +378,7 @@ function handleMove(row, col) {
 function placePiece(row, col, player) {
     moveHistory.push({ row, col, player });
     board[row][col] = player;
+    lastPlacedPosition = { row, col };
 }
 
 function getOpponent(player) {
@@ -770,8 +803,9 @@ function exportRecord() {
     const link = document.createElement("a");
 
     const dateStr = new Date().toISOString().slice(0, 10);
+    const timeStr = new Date().toISOString().slice(11, 19).replace(/:/g, "-");
     link.href = url;
-    link.download = `棋谱_${boardSize}x${boardSize}_${dateStr}.json`;
+    link.download = `棋谱_${boardSize}x${boardSize}_${dateStr}_${timeStr}.json`;
     link.style.display = "none";
     link.target = "_blank";
 
@@ -972,6 +1006,8 @@ function resumeGameFromReplay() {
 }
 
 // ==================== 启动游戏 ====================
+loadSavedTheme();
+
 if (!loadGameState()) {
     initializeGame();
 }
