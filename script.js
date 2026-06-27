@@ -803,7 +803,11 @@ function exportRecord() {
     const link = document.createElement("a");
 
     const dateStr = new Date().toISOString().slice(0, 10);
-    const timeStr = new Date().toISOString().slice(11, 19).replace(/:/g, "-");
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const secs = String(now.getSeconds()).padStart(2, '0');
+    const timeStr = hours + '-' + minutes + '-' + secs;
     link.href = url;
     link.download = `棋谱_${boardSize}x${boardSize}_${dateStr}_${timeStr}.json`;
     link.style.display = "none";
