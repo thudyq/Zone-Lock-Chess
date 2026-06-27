@@ -78,6 +78,11 @@ let previousBoardSize = boardSizeSelect.value;
 let previousGameMode = gameModeSelect.value;
 let previousAiDifficulty = aiDifficultySelect.value;
 
+// 防止select改变事件递归触发的标志
+let isUpdatingBoardSize = false;
+let isUpdatingGameMode = false;
+let isUpdatingAiDifficulty = false;
+
 let isReplayMode = false;
 let replayIndex = 0;
 let isReplayPlaying = false;
@@ -89,29 +94,41 @@ let lastPlacedPosition = null;
 restartBtn.addEventListener("click", initializeGame);
 
 boardSizeSelect.addEventListener("change", () => {
+    if (isUpdatingBoardSize) return;
     const message = "修改棋盘大小将重新开始游戏，是否继续？";
     if (confirm(message)) {
+        previousBoardSize = boardSizeSelect.value;
         initializeGame();
+    } else {
+        isUpdatingBoardSize = true;
+        boardSizeSelect.value = previousBoardSize;
+        isUpdatingBoardSize = false;
     }
 });
 
 gameModeSelect.addEventListener("change", () => {
+    if (isUpdatingGameMode) return;
     const message = "切换游戏模式将重新开始游戏，是否继续？";
     if (confirm(message)) {
         previousGameMode = gameModeSelect.value;
         initializeGame();
     } else {
+        isUpdatingGameMode = true;
         gameModeSelect.value = previousGameMode;
+        isUpdatingGameMode = false;
     }
-    updateAiDifficultyVisibility();
 });
 
 aiDifficultySelect.addEventListener("change", () => {
+    if (isUpdatingAiDifficulty) return;
     const message = "切换 AI 难度将改变后续 AI 的落子策略，是否继续？";
     if (confirm(message)) {
         previousAiDifficulty = aiDifficultySelect.value;
+        saveGameState();
     } else {
+        isUpdatingAiDifficulty = true;
         aiDifficultySelect.value = previousAiDifficulty;
+        isUpdatingAiDifficulty = false;
     }
 });
 
@@ -149,6 +166,10 @@ function initializeGame() {
     currentPlayer = PLAYER_BLACK;
     boardSize = Number(boardSizeSelect.value);
     lastPlacedPosition = null;
+
+    previousBoardSize = boardSizeSelect.value;
+    previousGameMode = gameModeSelect.value;
+    previousAiDifficulty = aiDifficultySelect.value;
 
     board = createEmptyBoard(boardSize);
 
@@ -206,6 +227,11 @@ function loadGameState() {
         gameOver = state.gameOver || false;
         gameModeSelect.value = state.gameMode || "pvp";
         aiDifficultySelect.value = state.aiDifficulty || "medium";
+
+        // 同步 previous 值，确保后续取消操作能正确恢复
+        previousBoardSize = boardSizeSelect.value;
+        previousGameMode = gameModeSelect.value;
+        previousAiDifficulty = aiDifficultySelect.value;
 
         board = createEmptyBoard(boardSize);
         for (const move of moveHistory) {
@@ -1007,6 +1033,7 @@ function resumeGameFromReplay() {
     moveHistory = moveHistory.slice(0, replayIndex);
     exitReplayMode();
     saveGameState();
+    triggerAiIfNeeded();
 }
 
 // ==================== 启动游戏 ====================
