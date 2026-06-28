@@ -32,6 +32,10 @@ const DIFFICULTY_EXPERT = "expert";
 
 const SEARCH_DEPTH_HARD = 2;
 const SEARCH_DEPTH_EXPERT = 3;
+const ROOM_CODE_LENGTH = 6;
+const LOCAL_CHANNEL_NAME = "board-game-online";
+const LOCAL_ROOM_PREFIX = "boardGameRoom:";
+const LOCAL_STATE_PREFIX = "boardGameRoomState:";
 
 // ==================== DOM 元素引用 ====================
 const boardDiv = document.getElementById("board");
@@ -104,12 +108,14 @@ let isOnlineMode = false;
 let onlineColor = null;
 let onlineRoomCode = null;
 let onlinePlayerId = null;
-let eventSource = null;
+let onlinePollingTimer = null;
 let isOnlineMyTurn = false;
+let localChannel = null;
+let localSyncEnabled = false;
 
 const DEFAULT_SERVER_URL = "http://localhost:3000";
 const SERVER_URL_STORAGE_KEY = "boardGameServerUrl";
-let serverUrl = getConfiguredServerUrl();
+let serverUrl = DEFAULT_SERVER_URL;
 
 function normalizeServerUrl(url) {
     const value = (url || "").trim();
@@ -117,6 +123,51 @@ function normalizeServerUrl(url) {
         return DEFAULT_SERVER_URL;
     }
     return value.replace(/\/$/, "");
+}
+
+async function probeServerUrl(candidateUrl) {
+    try {
+        const response = await fetch(`${candidateUrl}/health`, { method: "GET" });
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.ok) {
+                return candidateUrl;
+            }
+        }
+    } catch (error) {
+        // ignore
+    }
+    return null;
+}
+
+async function autoDetectServerUrl() {
+    const candidates = [];
+    const hostCandidates = [window.location.hostname, "localhost", "127.0.0.1"];
+    const ports = [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010];
+
+    const seen = new Set();
+    for (const host of hostCandidates) {
+        for (const port of ports) {
+            const candidate = `http://${host}:${port}`;
+            if (!seen.has(candidate)) {
+                candidates.push(candidate);
+                seen.add(candidate);
+            }
+        }
+    }
+
+    if (window.location.origin && window.location.origin.startsWith("http")) {
+        candidates.unshift(window.location.origin);
+    }
+
+    for (const candidate of candidates) {
+        const found = await probeServerUrl(candidate);
+        if (found) {
+            return found;
+        }
+    }
+
+    return normalizeServerUrl(DEFAULT_SERVER_URL);
 }
 
 function getConfiguredServerUrl() {
@@ -421,14 +472,22 @@ function renderRowLabels() {
     }
 }
 
+function getDisplayPlayerForBoard() {
+    if (isOnlineMode) {
+        return onlineColor;
+    }
+    return currentPlayer;
+}
+
 function createCell(row, col) {
     const cell = document.createElement("div");
     cell.classList.add("cell");
 
-    const isLegalMove = !gameOver && isLegal(row, col, currentPlayer);
+    const displayPlayer = getDisplayPlayerForBoard();
+    const isLegalMove = !gameOver && displayPlayer !== null && isLegal(row, col, displayPlayer);
     if (isLegalMove) {
         cell.classList.add("legal-move");
-        addHoverPreview(cell);
+        addHoverPreview(cell, displayPlayer);
     }
 
     cell.addEventListener("click", () => handleMove(row, col));
@@ -441,8 +500,10 @@ function createCell(row, col) {
     return cell;
 }
 
-function addHoverPreview(cell) {
-    const previewClass = currentPlayer === PLAYER_BLACK
+function addHoverPreview(cell, displayPlayer) {
+    if (!displayPlayer) return;
+
+    const previewClass = displayPlayer === PLAYER_BLACK
         ? "preview-black"
         : "preview-white";
 
@@ -470,7 +531,9 @@ function createPiece(player, row, col) {
 // ==================== 核心游戏逻辑 ====================
 function handleMove(row, col) {
     if (aiThinking || gameOver) return;
-    if (!isLegal(row, col, currentPlayer)) {
+
+    const actingPlayer = isOnlineMode ? onlineColor : currentPlayer;
+    if (!actingPlayer || !isLegal(row, col, actingPlayer)) {
         return;
     }
 
@@ -1141,21 +1204,168 @@ function resumeGameFromReplay() {
 }
 
 // ==================== 在线对战 ====================
+function generateRoomCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+}
+
+function getLocalRoomKey(code) {
+    return `${LOCAL_ROOM_PREFIX}${code}`;
+}
+
+function getLocalStateKey(code) {
+    return `${LOCAL_STATE_PREFIX}${code}`;
+}
+
+function readLocalRoom(code) {
+    try {
+        const raw = localStorage.getItem(getLocalRoomKey(code));
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function writeLocalRoom(code, room) {
+    localStorage.setItem(getLocalRoomKey(code), JSON.stringify(room));
+}
+
+function readLocalState(code) {
+    try {
+        const raw = localStorage.getItem(getLocalStateKey(code));
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function writeLocalState(code, state) {
+    localStorage.setItem(getLocalStateKey(code), JSON.stringify(state));
+}
+
+function getLocalIdentityKey(code) {
+    return `boardGameIdentity:${code}`;
+}
+
+function saveLocalIdentity(code, playerId, color) {
+    sessionStorage.setItem(getLocalIdentityKey(code), JSON.stringify({ playerId, color }));
+}
+
+function loadLocalIdentity(code) {
+    try {
+        const raw = sessionStorage.getItem(getLocalIdentityKey(code));
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function clearLocalIdentity(code) {
+    sessionStorage.removeItem(getLocalIdentityKey(code));
+}
+
+function createInitialOnlineState(code, boardSizeValue) {
+    return {
+        code,
+        boardSize: boardSizeValue,
+        board: createEmptyBoard(boardSizeValue),
+        currentPlayer: PLAYER_BLACK,
+        gameOver: false,
+        winner: null,
+        moveHistory: [],
+        players: []
+    };
+}
+
+function isLegalMoveInState(state, row, col, player) {
+    if (!state || state.board[row][col] !== 0) return false;
+    const opponent = player === PLAYER_BLACK ? PLAYER_WHITE : PLAYER_BLACK;
+
+    for (const [deltaRow, deltaCol] of DIRECTIONS) {
+        const neighborRow = row + deltaRow;
+        const neighborCol = col + deltaCol;
+
+        if (neighborRow >= 0 && neighborRow < state.boardSize && neighborCol >= 0 && neighborCol < state.boardSize) {
+            if (state.board[neighborRow][neighborCol] === opponent) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+function hasLegalMoveInState(state, player) {
+    for (let row = 0; row < state.boardSize; row++) {
+        for (let col = 0; col < state.boardSize; col++) {
+            if (isLegalMoveInState(state, row, col, player)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function handleStorageSync(event) {
+    if (!onlineRoomCode) return;
+    const roomKey = getLocalRoomKey(onlineRoomCode);
+    const stateKey = getLocalStateKey(onlineRoomCode);
+    if (event.key !== roomKey && event.key !== stateKey) return;
+
+    const state = readLocalState(onlineRoomCode);
+    if (state) {
+        applyOnlineState(state);
+    }
+}
+
+function notifyOpponentLeft() {
+    if (!onlineRoomCode) return;
+    const room = readLocalRoom(onlineRoomCode);
+    if (room) {
+        room.status = "ended";
+        writeLocalRoom(onlineRoomCode, room);
+    }
+
+    const state = readLocalState(onlineRoomCode);
+    if (state) {
+        state.gameOver = true;
+        state.winner = 0;
+        writeLocalState(onlineRoomCode, state);
+    }
+}
+
 function createRoom() {
-    fetch(`${serverUrl}/create-room`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boardSize: Number(boardSizeSelect.value) })
-    })
-        .then((response) => response.json())
-        .then((data) => {
-            onlineRoomCode = data.code;
-            joinRoomByCode(onlineRoomCode);
-        })
-        .catch((error) => {
-            onlineStatus.textContent = "创建房间失败";
-            console.error(error);
-        });
+    const code = generateRoomCode();
+    const boardSizeValue = Number(boardSizeSelect.value);
+    const playerId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    onlineRoomCode = code;
+    onlinePlayerId = playerId;
+    onlineColor = PLAYER_BLACK;
+    isOnlineMyTurn = true;
+    isOnlineMode = true;
+    saveLocalIdentity(code, playerId, onlineColor);
+
+    const room = {
+        code,
+        boardSize: boardSizeValue,
+        hostId: playerId,
+        guestId: null,
+        status: "waiting"
+    };
+    writeLocalRoom(code, room);
+
+    const state = createInitialOnlineState(code, boardSizeValue);
+    state.players = [{ id: playerId, color: onlineColor }];
+    writeLocalState(code, state);
+
+    applyOnlineState(state);
+    updateOnlinePanel("waiting");
+    onlineStatus.textContent = "房间已创建，分享房间号给对手";
 }
 
 function joinRoom() {
@@ -1168,122 +1378,86 @@ function joinRoom() {
 }
 
 function joinRoomByCode(code) {
-    fetch(`${serverUrl}/join-room`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code })
-    })
-        .then((response) => {
-            if (!response.ok) {
-                return response.json().then((data) => {
-                    throw new Error(data.error || "加入房间失败");
-                });
-            }
-            return response.json();
-        })
-        .then((data) => {
-            onlineRoomCode = code;
-            onlinePlayerId = data.playerId;
-            onlineColor = data.color;
-            connectToRoom(code, data.playerId);
-            updateOnlinePanel("waiting");
-        })
-        .catch((error) => {
-            onlineStatus.textContent = error.message;
-            console.error(error);
-        });
-}
-
-function connectToRoom(code, playerId) {
-    if (eventSource) {
-        eventSource.close();
+    const room = readLocalRoom(code);
+    if (!room) {
+        onlineStatus.textContent = "房间不存在或还没创建";
+        return;
     }
 
-    eventSource = new EventSource(`${serverUrl}/events?room=${code}&player=${playerId}`);
-
-    eventSource.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        handleServerMessage(message);
-    };
-
-    eventSource.onerror = () => {
-        onlineStatus.textContent = "连接已断开";
-        eventSource.close();
-    };
-}
-
-function handleServerMessage(message) {
-    switch (message.type) {
-        case "connected":
-            onlineColor = message.color;
-            break;
-        case "waiting":
-            updateOnlinePanel("waiting");
-            break;
-        case "started":
-            startOnlineGame(message);
-            break;
-        case "move":
-            applyOnlineMove(message);
-            break;
-        case "gameOver":
-            handleOnlineGameOver(message);
-            break;
-        case "opponentLeft":
-            handleOpponentLeft();
-            break;
+    if (room.guestId) {
+        onlineStatus.textContent = "房间已满";
+        return;
     }
-}
 
-function startOnlineGame(message) {
-    boardSize = message.boardSize;
-    boardSizeSelect.value = String(boardSize);
-    board = createEmptyBoard(boardSize);
-    currentPlayer = PLAYER_BLACK;
-    gameOver = false;
-    moveHistory = [];
-    isOnlineMyTurn = onlineColor === PLAYER_BLACK;
+    const playerId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    renderBoard();
-    updateTurnText();
-    updateEvaluation();
-    updateHistoryList();
+    onlineRoomCode = code;
+    onlinePlayerId = playerId;
+    onlineColor = PLAYER_WHITE;
+    isOnlineMyTurn = false;
+    isOnlineMode = true;
+    saveLocalIdentity(code, playerId, onlineColor);
+
+    room.guestId = playerId;
+    room.status = "playing";
+    writeLocalRoom(code, room);
+
+    const state = readLocalState(code) || createInitialOnlineState(code, room.boardSize);
+    state.boardSize = room.boardSize;
+    state.board = createEmptyBoard(room.boardSize);
+    state.currentPlayer = PLAYER_BLACK;
+    state.gameOver = false;
+    state.winner = null;
+    state.moveHistory = [];
+    state.players = [
+        { id: room.hostId, color: PLAYER_BLACK },
+        { id: playerId, color: onlineColor }
+    ];
+    writeLocalState(code, state);
+
+    applyOnlineState(state);
     updateOnlinePanel("playing");
-    saveGameState();
-}
-
-function applyOnlineMove(message) {
-    placePiece(message.row, message.col, message.player);
-    currentPlayer = message.currentPlayer;
-    isOnlineMyTurn = currentPlayer === onlineColor;
-
-    renderBoard();
-    updateTurnText();
-    updateEvaluation();
-    updateHistoryList();
-    saveGameState();
 }
 
 function sendOnlineMove(row, col) {
-    fetch(`${serverUrl}/move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            code: onlineRoomCode,
-            playerId: onlinePlayerId,
-            row,
-            col
-        })
-    })
-        .then((response) => {
-            if (!response.ok) {
-                alert("落子失败，请重试");
-            }
-        })
-        .catch((error) => {
-            console.error(error);
-            alert("网络错误");
-        });
+    if (!onlineRoomCode || !onlinePlayerId) {
+        return;
+    }
+
+    const state = readLocalState(onlineRoomCode);
+    if (!state) {
+        alert("房间状态不存在");
+        return;
+    }
+
+    if (state.gameOver || state.currentPlayer !== onlineColor) {
+        alert("还没轮到你");
+        return;
+    }
+
+    if (!isLegalMoveInState(state, row, col, onlineColor)) {
+        alert("非法落子");
+        return;
+    }
+
+    const nextBoard = state.board.map((rowData) => [...rowData]);
+    nextBoard[row][col] = onlineColor;
+    const nextState = {
+        ...state,
+        board: nextBoard,
+        moveHistory: [...state.moveHistory, { row, col, player: onlineColor }],
+        currentPlayer: getOpponent(onlineColor)
+    };
+
+    if (!hasLegalMoveInState(nextState, nextState.currentPlayer)) {
+        const hasMovesForCurrent = hasLegalMoveInState(nextState, onlineColor);
+        nextState.gameOver = true;
+        nextState.winner = hasMovesForCurrent ? onlineColor : 0;
+        nextState.currentPlayer = onlineColor;
+    }
+
+    writeLocalState(onlineRoomCode, nextState);
+    applyOnlineState(nextState);
 }
 
 function handleOnlineGameOver(message) {
@@ -1301,30 +1475,77 @@ function handleOnlineGameOver(message) {
 
 function handleOpponentLeft() {
     gameOver = true;
-    onlineStatus.textContent = "对手已离开";
+    notifyOpponentLeft();
+    onlineStatus.textContent = "对手已离开，点击重新开始即可";
     showResult("对手离开，游戏结束");
     saveGameState();
 }
 
 function leaveRoom() {
-    if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-    }
-
-    if (onlineRoomCode && onlinePlayerId) {
-        fetch(`${serverUrl}/leave-room`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code: onlineRoomCode, playerId: onlinePlayerId })
-        }).catch((error) => console.error(error));
+    const currentRoomCode = onlineRoomCode;
+    if (currentRoomCode) {
+        localStorage.removeItem(getLocalRoomKey(currentRoomCode));
+        localStorage.removeItem(getLocalStateKey(currentRoomCode));
+        clearLocalIdentity(currentRoomCode);
     }
 
     onlineRoomCode = null;
     onlinePlayerId = null;
     onlineColor = null;
     isOnlineMyTurn = false;
+    isOnlineMode = false;
     updateOnlinePanel("idle");
+}
+
+function restartOnlineRoom() {
+    if (!onlineRoomCode) return;
+    const room = readLocalRoom(onlineRoomCode);
+    if (room) {
+        room.status = "waiting";
+        room.guestId = null;
+        writeLocalRoom(onlineRoomCode, room);
+    }
+
+    const state = createInitialOnlineState(onlineRoomCode, boardSize);
+    state.players = [];
+    writeLocalState(onlineRoomCode, state);
+    applyOnlineState(state);
+    updateOnlinePanel("waiting");
+    onlineStatus.textContent = "房间已重置，可重新开始对局";
+}
+
+function applyOnlineState(state) {
+    if (!state) return;
+
+    if (onlineRoomCode) {
+        const localIdentity = loadLocalIdentity(onlineRoomCode);
+        if (localIdentity) {
+            onlinePlayerId = localIdentity.playerId;
+            onlineColor = localIdentity.color;
+        }
+    }
+
+    boardSize = state.boardSize;
+    boardSizeSelect.value = String(boardSize);
+    board = (state.board || []).map((row) => [...row]);
+    currentPlayer = state.currentPlayer;
+    gameOver = !!state.gameOver;
+    moveHistory = (state.moveHistory || []).map((move) => ({ ...move }));
+    isOnlineMyTurn = currentPlayer === onlineColor;
+
+    renderBoard();
+    updateTurnText();
+    updateEvaluation();
+    updateHistoryList();
+
+    if (state.gameOver) {
+        handleOnlineGameOver({ winner: state.winner ?? 0 });
+    } else {
+        const room = readLocalRoom(onlineRoomCode || state.code);
+        updateOnlinePanel(room && room.guestId ? "playing" : "waiting");
+    }
+
+    saveGameState();
 }
 
 function updateOnlinePanel(state) {
@@ -1355,9 +1576,19 @@ function updateOnlinePanel(state) {
     }
 }
 
+window.addEventListener("storage", handleStorageSync);
+
 // ==================== 启动游戏 ====================
 loadSavedTheme();
 serverUrlInput.value = serverUrl;
+
+(async () => {
+    const detectedUrl = await autoDetectServerUrl();
+    serverUrl = detectedUrl;
+    serverUrlInput.value = serverUrl;
+    localStorage.setItem(SERVER_URL_STORAGE_KEY, serverUrl);
+    onlineStatus.textContent = `已连接到后端：${serverUrl}`;
+})();
 
 if (!loadGameState()) {
     initializeGame();

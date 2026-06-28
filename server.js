@@ -1,13 +1,11 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const url = require("url");
 
-const PORT = 3000;
+const DEFAULT_PORT = 3000;
 const ROOM_CODE_LENGTH = 6;
 
 const rooms = new Map();
-const playerConnections = new Map();
 
 function generateRoomCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -39,11 +37,30 @@ function createRoom(boardSize) {
         board: createBoard(boardSize),
         currentPlayer: 1,
         gameOver: false,
+        winner: null,
         moveHistory: []
     };
 
     rooms.set(code, room);
     return room;
+}
+
+function getRoomState(room, playerId) {
+    const player = room.players.find((entry) => entry.id === playerId);
+    const status = room.players.length < 2 ? "waiting" : (room.gameOver ? "finished" : "playing");
+
+    return {
+        code: room.code,
+        boardSize: room.boardSize,
+        board: room.board,
+        currentPlayer: room.currentPlayer,
+        gameOver: room.gameOver,
+        winner: room.winner,
+        moveHistory: room.moveHistory,
+        players: room.players.map((entry) => ({ id: entry.id, color: entry.color })),
+        myColor: player ? player.color : null,
+        status
+    };
 }
 
 function isLegalMove(room, row, col, player) {
@@ -82,33 +99,8 @@ function checkGameEnd(room) {
     if (hasLegalMove(room, room.currentPlayer)) return;
 
     const opponent = room.currentPlayer === 1 ? 2 : 1;
-    const opponentCanMove = hasLegalMove(room, opponent);
-
     room.gameOver = true;
-
-    if (opponentCanMove) {
-        broadcast(room, { type: "gameOver", winner: opponent });
-    } else {
-        broadcast(room, { type: "gameOver", winner: 0 });
-    }
-}
-
-function broadcast(room, data) {
-    const message = `data: ${JSON.stringify(data)}\n\n`;
-    room.players.forEach((player) => {
-        if (player.res && !player.res.writableEnded) {
-            player.res.write(message);
-        }
-    });
-}
-
-function cleanupRoom(room) {
-    room.players.forEach((player) => {
-        if (player.res && !player.res.writableEnded) {
-            player.res.end();
-        }
-    });
-    rooms.delete(room.code);
+    room.winner = hasLegalMove(room, opponent) ? opponent : 0;
 }
 
 function parseBody(req, callback) {
@@ -146,9 +138,10 @@ function serveStaticFile(filePath, res) {
     });
 }
 
-const server = http.createServer((req, res) => {
-    const parsedUrl = url.parse(req.url, true);
-    const pathname = parsedUrl.pathname;
+function startServer(port) {
+    const server = http.createServer((req, res) => {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const pathname = requestUrl.pathname;
     const method = req.method;
 
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -205,72 +198,44 @@ const server = http.createServer((req, res) => {
 
             const playerId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
             const color = room.players.length === 0 ? 1 : 2;
-            const player = { id: playerId, color, res: null };
+            const player = { id: playerId, color };
 
             room.players.push(player);
-            playerConnections.set(playerId, { roomCode: code, color });
 
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ playerId, color, boardSize: room.boardSize }));
-
-            if (room.players.length === 2) {
-                broadcast(room, { type: "started", currentPlayer: 1, boardSize: room.boardSize });
-            }
         });
         return;
     }
 
-    if (pathname === "/events" && method === "GET") {
-        const code = parsedUrl.query.room;
-        const playerId = parsedUrl.query.player;
+    if (pathname === "/room-state" && method === "GET") {
+        const code = requestUrl.searchParams.get("room");
+        const playerId = requestUrl.searchParams.get("player");
         const room = rooms.get(code);
 
         if (!room) {
-            res.writeHead(404);
-            res.end();
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "房间不存在" }));
             return;
         }
 
-        const player = room.players.find((p) => p.id === playerId);
+        const player = room.players.find((entry) => entry.id === playerId);
         if (!player) {
-            res.writeHead(403);
-            res.end();
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "未授权" }));
             return;
         }
 
-        res.writeHead(200, {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive"
-        });
-
-        player.res = res;
-
-        res.write(`data: ${JSON.stringify({ type: "connected", color: player.color })}\n\n`);
-
-        if (room.players.length === 1) {
-            res.write(`data: ${JSON.stringify({ type: "waiting" })}\n\n`);
-        } else if (room.players.length === 2) {
-            res.write(`data: ${JSON.stringify({ type: "started", currentPlayer: 1, boardSize: room.boardSize })}\n\n`);
-        }
-
-        req.on("close", () => {
-            player.res = null;
-            const otherPlayer = room.players.find((p) => p.id !== playerId);
-            if (otherPlayer) {
-                broadcast(room, { type: "opponentLeft" });
-            }
-            cleanupRoom(room);
-        });
-
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(getRoomState(room, playerId)));
         return;
     }
 
     if (pathname === "/move" && method === "POST") {
         parseBody(req, (body) => {
             if (!body) {
-                res.writeHead(400);
-                res.end();
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "缺少参数" }));
                 return;
             }
 
@@ -278,15 +243,15 @@ const server = http.createServer((req, res) => {
             const room = rooms.get(code);
 
             if (!room) {
-                res.writeHead(404);
-                res.end();
+                res.writeHead(404, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "房间不存在" }));
                 return;
             }
 
-            const player = room.players.find((p) => p.id === playerId);
+            const player = room.players.find((entry) => entry.id === playerId);
             if (!player) {
-                res.writeHead(403);
-                res.end();
+                res.writeHead(403, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "未授权" }));
                 return;
             }
 
@@ -299,12 +264,10 @@ const server = http.createServer((req, res) => {
             room.board[row][col] = player.color;
             room.moveHistory.push({ row, col, player: player.color });
             room.currentPlayer = player.color === 1 ? 2 : 1;
-
-            broadcast(room, { type: "move", row, col, player: player.color, currentPlayer: room.currentPlayer });
             checkGameEnd(room);
 
-            res.writeHead(200);
-            res.end();
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
         });
         return;
     }
@@ -314,20 +277,43 @@ const server = http.createServer((req, res) => {
             const { code, playerId } = body || {};
             const room = rooms.get(code);
             if (room) {
-                broadcast(room, { type: "opponentLeft" });
-                cleanupRoom(room);
+                room.players = room.players.filter((entry) => entry.id !== playerId);
+                if (room.players.length === 0) {
+                    rooms.delete(room.code);
+                }
             }
-            playerConnections.delete(playerId);
-            res.writeHead(200);
-            res.end();
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true }));
         });
+        return;
+    }
+
+    if (pathname === "/health" && method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, port }));
         return;
     }
 
     res.writeHead(404);
     res.end("Not found");
-});
+    });
 
-server.listen(PORT, () => {
-    console.log(`在线对战服务器已启动: http://localhost:${PORT}`);
-});
+    server.on("error", (error) => {
+        if (error.code === "EADDRINUSE") {
+            const nextPort = port + 1;
+            if (nextPort <= 3010) {
+                console.log(`端口 ${port} 被占用，尝试 ${nextPort}`);
+                startServer(nextPort);
+                return;
+            }
+        }
+        console.error(error);
+        process.exit(1);
+    });
+
+    server.listen(port, () => {
+        console.log(`在线对战服务器已启动: http://localhost:${port}`);
+    });
+}
+
+startServer(Number(process.env.PORT || DEFAULT_PORT));
