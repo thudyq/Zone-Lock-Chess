@@ -1,6 +1,6 @@
 
 
-# 我的棋类游戏（暂定名）
+# 封域棋 Zone Lock Chess
 
 一个基于 HTML + CSS + JavaScript 开发的原创棋类网页游戏。
 
