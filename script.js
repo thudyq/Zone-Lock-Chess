@@ -66,6 +66,16 @@ const replayLastBtn = document.getElementById("replayLast");
 const replaySpeedSelect = document.getElementById("replaySpeedSelect");
 const resumeGameBtn = document.getElementById("resumeGameBtn");
 
+const onlinePanel = document.getElementById("onlinePanel");
+const createRoomBtn = document.getElementById("createRoomBtn");
+const joinRoomBtn = document.getElementById("joinRoomBtn");
+const roomCodeInput = document.getElementById("roomCodeInput");
+const serverUrlInput = document.getElementById("serverUrlInput");
+const applyServerUrlBtn = document.getElementById("applyServerUrlBtn");
+const onlineStatus = document.getElementById("onlineStatus");
+const roomCodeDisplay = document.getElementById("roomCodeDisplay");
+const leaveRoomBtn = document.getElementById("leaveRoomBtn");
+
 // ==================== 游戏状态 ====================
 let boardSize = 8;
 let board = [];
@@ -89,6 +99,55 @@ let isReplayPlaying = false;
 let replayTimer = null;
 
 let lastPlacedPosition = null;
+
+let isOnlineMode = false;
+let onlineColor = null;
+let onlineRoomCode = null;
+let onlinePlayerId = null;
+let eventSource = null;
+let isOnlineMyTurn = false;
+
+const DEFAULT_SERVER_URL = "http://localhost:3000";
+const SERVER_URL_STORAGE_KEY = "boardGameServerUrl";
+let serverUrl = getConfiguredServerUrl();
+
+function normalizeServerUrl(url) {
+    const value = (url || "").trim();
+    if (!value) {
+        return DEFAULT_SERVER_URL;
+    }
+    return value.replace(/\/$/, "");
+}
+
+function getConfiguredServerUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("server");
+    if (fromQuery) {
+        return normalizeServerUrl(fromQuery);
+    }
+
+    const stored = localStorage.getItem(SERVER_URL_STORAGE_KEY);
+    if (stored) {
+        return normalizeServerUrl(stored);
+    }
+
+    const currentOrigin = window.location.origin;
+    if (currentOrigin && (currentOrigin.includes("localhost") || currentOrigin.includes("127.0.0.1"))) {
+        const parsed = new URL(currentOrigin);
+        if (parsed.port === "3000") {
+            return parsed.origin;
+        }
+    }
+
+    return DEFAULT_SERVER_URL;
+}
+
+function applyServerUrl() {
+    serverUrl = normalizeServerUrl(serverUrlInput.value);
+    localStorage.setItem(SERVER_URL_STORAGE_KEY, serverUrl);
+    serverUrlInput.value = serverUrl;
+    onlineStatus.textContent = `后端地址已切换为 ${serverUrl}`;
+}
 
 // ==================== 事件监听 ====================
 restartBtn.addEventListener("click", initializeGame);
@@ -116,6 +175,7 @@ gameModeSelect.addEventListener("change", () => {
         isUpdatingGameMode = true;
         gameModeSelect.value = previousGameMode;
         isUpdatingGameMode = false;
+        updateModeSpecificUI();
     }
 });
 
@@ -154,6 +214,19 @@ replayLastBtn.addEventListener("click", replayLast);
 replaySpeedSelect.addEventListener("change", handleReplaySpeedChange);
 resumeGameBtn.addEventListener("click", resumeGameFromReplay);
 
+createRoomBtn.addEventListener("click", createRoom);
+joinRoomBtn.addEventListener("click", joinRoom);
+leaveRoomBtn.addEventListener("click", leaveRoom);
+applyServerUrlBtn.addEventListener("click", applyServerUrl);
+roomCodeInput.addEventListener("input", () => {
+    roomCodeInput.value = roomCodeInput.value.toUpperCase();
+});
+serverUrlInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        applyServerUrl();
+    }
+});
+
 // ==================== 游戏初始化与重置 ====================
 function initializeGame() {
     stopAiTimer();
@@ -166,6 +239,7 @@ function initializeGame() {
     currentPlayer = PLAYER_BLACK;
     boardSize = Number(boardSizeSelect.value);
     lastPlacedPosition = null;
+    isOnlineMyTurn = false;
 
     previousBoardSize = boardSizeSelect.value;
     previousGameMode = gameModeSelect.value;
@@ -177,7 +251,7 @@ function initializeGame() {
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
-    updateAiDifficultyVisibility();
+    updateModeSpecificUI();
     updateReplayControls();
     overlay.classList.add("hidden");
     saveGameState();
@@ -244,7 +318,7 @@ function loadGameState() {
         updateTurnText();
         updateEvaluation();
         updateHistoryList();
-        updateAiDifficultyVisibility();
+        updateModeSpecificUI();
         updateReplayControls();
 
         if (gameOver) {
@@ -270,10 +344,22 @@ function clearSavedGameState() {
     }
 }
 
-function updateAiDifficultyVisibility() {
-    const isAiMode = gameModeSelect.value === "ai";
+function updateModeSpecificUI() {
+    const mode = gameModeSelect.value;
+    isOnlineMode = mode === "online";
+
+    const isAiMode = mode === "ai";
     aiDifficultySelect.disabled = !isAiMode;
     aiDifficultyLabel.classList.toggle("disabled", !isAiMode);
+
+    if (isOnlineMode) {
+        onlinePanel.classList.remove("hidden");
+    } else {
+        onlinePanel.classList.add("hidden");
+        if (onlineRoomCode) {
+            leaveRoom();
+        }
+    }
 }
 
 function applyTheme(theme) {
@@ -385,6 +471,15 @@ function createPiece(player, row, col) {
 function handleMove(row, col) {
     if (aiThinking || gameOver) return;
     if (!isLegal(row, col, currentPlayer)) {
+        return;
+    }
+
+    if (isOnlineMode) {
+        if (!isOnlineMyTurn) {
+            alert("还没轮到你！");
+            return;
+        }
+        sendOnlineMove(row, col);
         return;
     }
 
@@ -541,6 +636,15 @@ function updateTurnText() {
     if (isReplayMode) {
         turnText.textContent = `回放中：第 ${replayIndex} / ${moveHistory.length} 步`;
         moveCountText.textContent = "";
+        return;
+    }
+
+    if (isOnlineMode) {
+        const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
+        const turnSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
+        turnText.textContent = `你是${colorText}｜当前：${turnSymbol} ${PLAYER_NAMES[currentPlayer]}`;
+        moveCountText.textContent = isOnlineMyTurn ? "轮到你了" : "等待对手落子";
+        updateOnlinePanel("playing");
         return;
     }
 
@@ -1036,8 +1140,224 @@ function resumeGameFromReplay() {
     triggerAiIfNeeded();
 }
 
+// ==================== 在线对战 ====================
+function createRoom() {
+    fetch(`${serverUrl}/create-room`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardSize: Number(boardSizeSelect.value) })
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            onlineRoomCode = data.code;
+            joinRoomByCode(onlineRoomCode);
+        })
+        .catch((error) => {
+            onlineStatus.textContent = "创建房间失败";
+            console.error(error);
+        });
+}
+
+function joinRoom() {
+    const code = roomCodeInput.value.trim().toUpperCase();
+    if (code.length !== ROOM_CODE_LENGTH) {
+        onlineStatus.textContent = `请输入 ${ROOM_CODE_LENGTH} 位房间号`;
+        return;
+    }
+    joinRoomByCode(code);
+}
+
+function joinRoomByCode(code) {
+    fetch(`${serverUrl}/join-room`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code })
+    })
+        .then((response) => {
+            if (!response.ok) {
+                return response.json().then((data) => {
+                    throw new Error(data.error || "加入房间失败");
+                });
+            }
+            return response.json();
+        })
+        .then((data) => {
+            onlineRoomCode = code;
+            onlinePlayerId = data.playerId;
+            onlineColor = data.color;
+            connectToRoom(code, data.playerId);
+            updateOnlinePanel("waiting");
+        })
+        .catch((error) => {
+            onlineStatus.textContent = error.message;
+            console.error(error);
+        });
+}
+
+function connectToRoom(code, playerId) {
+    if (eventSource) {
+        eventSource.close();
+    }
+
+    eventSource = new EventSource(`${serverUrl}/events?room=${code}&player=${playerId}`);
+
+    eventSource.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        handleServerMessage(message);
+    };
+
+    eventSource.onerror = () => {
+        onlineStatus.textContent = "连接已断开";
+        eventSource.close();
+    };
+}
+
+function handleServerMessage(message) {
+    switch (message.type) {
+        case "connected":
+            onlineColor = message.color;
+            break;
+        case "waiting":
+            updateOnlinePanel("waiting");
+            break;
+        case "started":
+            startOnlineGame(message);
+            break;
+        case "move":
+            applyOnlineMove(message);
+            break;
+        case "gameOver":
+            handleOnlineGameOver(message);
+            break;
+        case "opponentLeft":
+            handleOpponentLeft();
+            break;
+    }
+}
+
+function startOnlineGame(message) {
+    boardSize = message.boardSize;
+    boardSizeSelect.value = String(boardSize);
+    board = createEmptyBoard(boardSize);
+    currentPlayer = PLAYER_BLACK;
+    gameOver = false;
+    moveHistory = [];
+    isOnlineMyTurn = onlineColor === PLAYER_BLACK;
+
+    renderBoard();
+    updateTurnText();
+    updateEvaluation();
+    updateHistoryList();
+    updateOnlinePanel("playing");
+    saveGameState();
+}
+
+function applyOnlineMove(message) {
+    placePiece(message.row, message.col, message.player);
+    currentPlayer = message.currentPlayer;
+    isOnlineMyTurn = currentPlayer === onlineColor;
+
+    renderBoard();
+    updateTurnText();
+    updateEvaluation();
+    updateHistoryList();
+    saveGameState();
+}
+
+function sendOnlineMove(row, col) {
+    fetch(`${serverUrl}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            code: onlineRoomCode,
+            playerId: onlinePlayerId,
+            row,
+            col
+        })
+    })
+        .then((response) => {
+            if (!response.ok) {
+                alert("落子失败，请重试");
+            }
+        })
+        .catch((error) => {
+            console.error(error);
+            alert("网络错误");
+        });
+}
+
+function handleOnlineGameOver(message) {
+    gameOver = true;
+
+    if (message.winner === 0) {
+        showResult("平局！");
+    } else {
+        const winnerName = PLAYER_NAMES[message.winner];
+        showResult(`${winnerName}获胜！`);
+    }
+
+    saveGameState();
+}
+
+function handleOpponentLeft() {
+    gameOver = true;
+    onlineStatus.textContent = "对手已离开";
+    showResult("对手离开，游戏结束");
+    saveGameState();
+}
+
+function leaveRoom() {
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+
+    if (onlineRoomCode && onlinePlayerId) {
+        fetch(`${serverUrl}/leave-room`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: onlineRoomCode, playerId: onlinePlayerId })
+        }).catch((error) => console.error(error));
+    }
+
+    onlineRoomCode = null;
+    onlinePlayerId = null;
+    onlineColor = null;
+    isOnlineMyTurn = false;
+    updateOnlinePanel("idle");
+}
+
+function updateOnlinePanel(state) {
+    if (state === "idle") {
+        onlineStatus.textContent = "";
+        roomCodeDisplay.classList.add("hidden");
+        leaveRoomBtn.classList.add("hidden");
+        createRoomBtn.disabled = false;
+        joinRoomBtn.disabled = false;
+        roomCodeInput.disabled = false;
+    } else if (state === "waiting") {
+        onlineStatus.textContent = "等待对手加入...";
+        roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
+        roomCodeDisplay.classList.remove("hidden");
+        leaveRoomBtn.classList.remove("hidden");
+        createRoomBtn.disabled = true;
+        joinRoomBtn.disabled = true;
+        roomCodeInput.disabled = true;
+    } else if (state === "playing") {
+        const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
+        onlineStatus.textContent = `你是${colorText}，${isOnlineMyTurn ? "轮到你了" : "等待对手"}`;
+        roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
+        roomCodeDisplay.classList.remove("hidden");
+        leaveRoomBtn.classList.remove("hidden");
+        createRoomBtn.disabled = true;
+        joinRoomBtn.disabled = true;
+        roomCodeInput.disabled = true;
+    }
+}
+
 // ==================== 启动游戏 ====================
 loadSavedTheme();
+serverUrlInput.value = serverUrl;
 
 if (!loadGameState()) {
     initializeGame();

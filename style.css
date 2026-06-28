@@ -310,7 +310,8 @@ select {
 /* 棋谱记录 */
 #historyPanel,
 #recordPanel,
-#replayPanel {
+#replayPanel,
+#onlinePanel {
     width: 300px;
     margin: 20px auto;
     text-align: left;
@@ -360,6 +361,34 @@ select {
 
 #replaySpeed {
     margin-bottom: 10px;
+}
+
+#onlinePanel input[type="text"] {
+    width: calc(100% - 90px);
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid var(--select-border);
+    border-radius: 6px;
+    background: var(--select-bg);
+    color: var(--text-color);
+    text-transform: uppercase;
+}
+
+#onlineStatus {
+    margin: 10px 0;
+    font-weight: bold;
+    min-height: 24px;
+}
+
+#roomCodeDisplay {
+    padding: 10px;
+    background: var(--cell-bg);
+    border-radius: 6px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    word-break: break-all;
 }
 
 /* 结束弹窗 */
@@ -423,8 +452,14 @@ select {
 
     #historyPanel,
     #recordPanel,
-    #replayPanel {
+    #replayPanel,
+    #onlinePanel {
         width: 100%;
+    }
+
+    #onlinePanel input[type="text"] {
+        width: 100%;
+        margin-bottom: 8px;
     }
 }
 

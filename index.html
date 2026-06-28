@@ -28,6 +28,7 @@
         <select id="gameMode">
             <option value="pvp">双人对战</option>
             <option value="ai">人机对战</option>
+            <option value="online">在线对战</option>
         </select>
 
         <label id="aiDifficultyLabel" class="ai-difficulty-label" for="aiDifficulty">AI 难度：</label>
@@ -59,6 +60,24 @@
                 <div id="historyPanel">
                     <h3>棋谱记录</h3>
                     <ol id="historyList"></ol>
+                </div>
+
+                <div id="onlinePanel" class="hidden">
+                    <h3>在线对战</h3>
+                    <div id="onlineCreateSection">
+                        <button type="button" id="createRoomBtn">创建房间</button>
+                    </div>
+                    <div id="onlineJoinSection">
+                        <input type="text" id="roomCodeInput" placeholder="输入房间号(6位数字)" maxlength="6">
+                        <button type="button" id="joinRoomBtn">加入房间</button>
+                    </div>
+                    <div class="server-url-section">
+                        <input type="text" id="serverUrlInput" placeholder="后端地址，如 http://localhost:3000">
+                        <button type="button" id="applyServerUrlBtn">应用</button>
+                    </div>
+                    <div id="onlineStatus"></div>
+                    <div id="roomCodeDisplay" class="hidden"></div>
+                    <button type="button" id="leaveRoomBtn" class="hidden">离开房间</button>
                 </div>
 
                 <div id="recordPanel">
