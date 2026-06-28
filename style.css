@@ -127,9 +127,38 @@ select {
     justify-content: center;
     align-items: flex-start;
     gap: 20px;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 0 12px;
+}
+
+#infoPanel {
+    width: 280px;
+    flex-shrink: 0;
+    text-align: left;
+    font-size: 16px;
+}
+
+#infoPanel h2 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 20px;
+}
+
+#infoPanel h3 {
+    margin: 14px 0 8px;
+    font-size: 18px;
+}
+
+#infoPanel p,
+#infoPanel li {
+    line-height: 1.6;
+    font-size: 16px;
+}
+
+#infoPanel ul {
+    padding-left: 20px;
+    margin: 0;
 }
 
 #boardContainer {
