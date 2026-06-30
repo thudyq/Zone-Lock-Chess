@@ -33,9 +33,6 @@ const DIFFICULTY_EXPERT = "expert";
 const SEARCH_DEPTH_HARD = 2;
 const SEARCH_DEPTH_EXPERT = 3;
 const ROOM_CODE_LENGTH = 6;
-const LOCAL_CHANNEL_NAME = "board-game-online";
-const LOCAL_ROOM_PREFIX = "boardGameRoom:";
-const LOCAL_STATE_PREFIX = "boardGameRoomState:";
 
 // ==================== DOM 元素引用 ====================
 const boardDiv = document.getElementById("board");
@@ -246,6 +243,11 @@ aiDifficultySelect.addEventListener("change", () => {
 undoBtn.addEventListener("click", undoMove);
 
 playAgainBtn.addEventListener("click", () => {
+    if (isOnlineMode) {
+        sendRematchRequest();
+        return;
+    }
+
     overlay.classList.add("hidden");
     initializeGame();
 });
@@ -1213,159 +1215,78 @@ function generateRoomCode() {
     return code;
 }
 
-function getLocalRoomKey(code) {
-    return `${LOCAL_ROOM_PREFIX}${code}`;
-}
-
-function getLocalStateKey(code) {
-    return `${LOCAL_STATE_PREFIX}${code}`;
-}
-
-function readLocalRoom(code) {
-    try {
-        const raw = localStorage.getItem(getLocalRoomKey(code));
-        return raw ? JSON.parse(raw) : null;
-    } catch (error) {
-        return null;
-    }
-}
-
-function writeLocalRoom(code, room) {
-    localStorage.setItem(getLocalRoomKey(code), JSON.stringify(room));
-}
-
-function readLocalState(code) {
-    try {
-        const raw = localStorage.getItem(getLocalStateKey(code));
-        return raw ? JSON.parse(raw) : null;
-    } catch (error) {
-        return null;
-    }
-}
-
-function writeLocalState(code, state) {
-    localStorage.setItem(getLocalStateKey(code), JSON.stringify(state));
-}
-
-function getLocalIdentityKey(code) {
+function getOnlineIdentityKey(code) {
     return `boardGameIdentity:${code}`;
 }
 
-function saveLocalIdentity(code, playerId, color) {
-    sessionStorage.setItem(getLocalIdentityKey(code), JSON.stringify({ playerId, color }));
+function saveOnlineIdentity(code, playerId, color) {
+    sessionStorage.setItem(getOnlineIdentityKey(code), JSON.stringify({ playerId, color }));
 }
 
-function loadLocalIdentity(code) {
+function loadOnlineIdentity(code) {
     try {
-        const raw = sessionStorage.getItem(getLocalIdentityKey(code));
+        const raw = sessionStorage.getItem(getOnlineIdentityKey(code));
         return raw ? JSON.parse(raw) : null;
     } catch (error) {
         return null;
     }
 }
 
-function clearLocalIdentity(code) {
-    sessionStorage.removeItem(getLocalIdentityKey(code));
+function clearOnlineIdentity(code) {
+    sessionStorage.removeItem(getOnlineIdentityKey(code));
 }
 
-function createInitialOnlineState(code, boardSizeValue) {
-    return {
-        code,
-        boardSize: boardSizeValue,
-        board: createEmptyBoard(boardSizeValue),
-        currentPlayer: PLAYER_BLACK,
-        gameOver: false,
-        winner: null,
-        moveHistory: [],
-        players: []
-    };
-}
+async function apiRequest(path, method, body) {
+    const response = await fetch(`${serverUrl}${path}`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined
+    });
 
-function isLegalMoveInState(state, row, col, player) {
-    if (!state || state.board[row][col] !== 0) return false;
-    const opponent = player === PLAYER_BLACK ? PLAYER_WHITE : PLAYER_BLACK;
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
 
-    for (const [deltaRow, deltaCol] of DIRECTIONS) {
-        const neighborRow = row + deltaRow;
-        const neighborCol = col + deltaCol;
-
-        if (neighborRow >= 0 && neighborRow < state.boardSize && neighborCol >= 0 && neighborCol < state.boardSize) {
-            if (state.board[neighborRow][neighborCol] === opponent) {
-                return false;
-            }
-        }
+    if (!response.ok) {
+        throw new Error(data && data.error ? data.error : `请求失败 ${response.status}`);
     }
 
-    return true;
+    return data;
 }
 
-function hasLegalMoveInState(state, player) {
-    for (let row = 0; row < state.boardSize; row++) {
-        for (let col = 0; col < state.boardSize; col++) {
-            if (isLegalMoveInState(state, row, col, player)) {
-                return true;
-            }
-        }
-    }
-    return false;
+function startOnlinePolling() {
+    stopOnlinePolling();
+    onlinePollingTimer = setInterval(pollServerState, 1000);
 }
 
-function handleStorageSync(event) {
-    if (!onlineRoomCode) return;
-    const roomKey = getLocalRoomKey(onlineRoomCode);
-    const stateKey = getLocalStateKey(onlineRoomCode);
-    if (event.key !== roomKey && event.key !== stateKey) return;
-
-    const state = readLocalState(onlineRoomCode);
-    if (state) {
-        applyOnlineState(state);
+function stopOnlinePolling() {
+    if (onlinePollingTimer) {
+        clearInterval(onlinePollingTimer);
+        onlinePollingTimer = null;
     }
 }
 
-function notifyOpponentLeft() {
-    if (!onlineRoomCode) return;
-    const room = readLocalRoom(onlineRoomCode);
-    if (room) {
-        room.status = "ended";
-        writeLocalRoom(onlineRoomCode, room);
-    }
+async function pollServerState() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
 
-    const state = readLocalState(onlineRoomCode);
-    if (state) {
-        state.gameOver = true;
-        state.winner = 0;
-        writeLocalState(onlineRoomCode, state);
+    try {
+        const state = await apiRequest(`/room-state?room=${onlineRoomCode}&player=${onlinePlayerId}`, "GET");
+        applyServerState(state);
+    } catch (error) {
+        console.error(error);
+        onlineStatus.textContent = "同步失败，请检查网络";
     }
 }
 
 function createRoom() {
-    const code = generateRoomCode();
     const boardSizeValue = Number(boardSizeSelect.value);
-    const playerId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    onlineRoomCode = code;
-    onlinePlayerId = playerId;
-    onlineColor = PLAYER_BLACK;
-    isOnlineMyTurn = true;
-    isOnlineMode = true;
-    saveLocalIdentity(code, playerId, onlineColor);
-
-    const room = {
-        code,
-        boardSize: boardSizeValue,
-        hostId: playerId,
-        guestId: null,
-        status: "waiting"
-    };
-    writeLocalRoom(code, room);
-
-    const state = createInitialOnlineState(code, boardSizeValue);
-    state.players = [{ id: playerId, color: onlineColor }];
-    writeLocalState(code, state);
-
-    applyOnlineState(state);
-    updateOnlinePanel("waiting");
-    onlineStatus.textContent = "房间已创建，分享房间号给对手";
+    apiRequest("/create-room", "POST", { boardSize: boardSizeValue })
+        .then((data) => {
+            joinServerRoom(data.code, true);
+        })
+        .catch((error) => {
+            onlineStatus.textContent = error.message;
+        });
 }
 
 function joinRoom() {
@@ -1374,155 +1295,70 @@ function joinRoom() {
         onlineStatus.textContent = `请输入 ${ROOM_CODE_LENGTH} 位房间号`;
         return;
     }
-    joinRoomByCode(code);
+    joinServerRoom(code, false);
 }
 
-function joinRoomByCode(code) {
-    const room = readLocalRoom(code);
-    if (!room) {
-        onlineStatus.textContent = "房间不存在或还没创建";
-        return;
-    }
+function joinServerRoom(code, isHost) {
+    apiRequest("/join-room", "POST", { code })
+        .then((data) => {
+            onlineRoomCode = code;
+            onlinePlayerId = data.playerId;
+            onlineColor = data.color;
+            isOnlineMode = true;
+            saveOnlineIdentity(code, data.playerId, data.color);
 
-    if (room.guestId) {
-        onlineStatus.textContent = "房间已满";
-        return;
-    }
+            boardSize = data.boardSize;
+            boardSizeSelect.value = String(boardSize);
 
-    const playerId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    onlineRoomCode = code;
-    onlinePlayerId = playerId;
-    onlineColor = PLAYER_WHITE;
-    isOnlineMyTurn = false;
-    isOnlineMode = true;
-    saveLocalIdentity(code, playerId, onlineColor);
-
-    room.guestId = playerId;
-    room.status = "playing";
-    writeLocalRoom(code, room);
-
-    const state = readLocalState(code) || createInitialOnlineState(code, room.boardSize);
-    state.boardSize = room.boardSize;
-    state.board = createEmptyBoard(room.boardSize);
-    state.currentPlayer = PLAYER_BLACK;
-    state.gameOver = false;
-    state.winner = null;
-    state.moveHistory = [];
-    state.players = [
-        { id: room.hostId, color: PLAYER_BLACK },
-        { id: playerId, color: onlineColor }
-    ];
-    writeLocalState(code, state);
-
-    applyOnlineState(state);
-    updateOnlinePanel("playing");
+            startOnlinePolling();
+            updateOnlinePanel(isHost ? "waiting" : "playing");
+            onlineStatus.textContent = isHost ? "房间已创建，分享房间号给对手" : "已加入房间，等待同步...";
+        })
+        .catch((error) => {
+            onlineStatus.textContent = error.message;
+        });
 }
 
 function sendOnlineMove(row, col) {
-    if (!onlineRoomCode || !onlinePlayerId) {
-        return;
-    }
+    if (!onlineRoomCode || !onlinePlayerId) return;
 
-    const state = readLocalState(onlineRoomCode);
-    if (!state) {
-        alert("房间状态不存在");
-        return;
-    }
-
-    if (state.gameOver || state.currentPlayer !== onlineColor) {
-        alert("还没轮到你");
-        return;
-    }
-
-    if (!isLegalMoveInState(state, row, col, onlineColor)) {
-        alert("非法落子");
-        return;
-    }
-
-    const nextBoard = state.board.map((rowData) => [...rowData]);
-    nextBoard[row][col] = onlineColor;
-    const nextState = {
-        ...state,
-        board: nextBoard,
-        moveHistory: [...state.moveHistory, { row, col, player: onlineColor }],
-        currentPlayer: getOpponent(onlineColor)
-    };
-
-    if (!hasLegalMoveInState(nextState, nextState.currentPlayer)) {
-        const hasMovesForCurrent = hasLegalMoveInState(nextState, onlineColor);
-        nextState.gameOver = true;
-        nextState.winner = hasMovesForCurrent ? onlineColor : 0;
-        nextState.currentPlayer = onlineColor;
-    }
-
-    writeLocalState(onlineRoomCode, nextState);
-    applyOnlineState(nextState);
+    apiRequest("/move", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        row,
+        col
+    })
+        .then((data) => {
+            applyServerState(data.state);
+        })
+        .catch((error) => {
+            alert(error.message);
+        });
 }
 
-function handleOnlineGameOver(message) {
-    gameOver = true;
+function sendRematchRequest() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
 
-    if (message.winner === 0) {
-        showResult("平局！");
-    } else {
-        const winnerName = PLAYER_NAMES[message.winner];
-        showResult(`${winnerName}获胜！`);
-    }
-
-    saveGameState();
+    apiRequest("/rematch", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId
+    })
+        .then((data) => {
+            applyServerState(data.state);
+        })
+        .catch((error) => {
+            alert(error.message);
+        });
 }
 
-function handleOpponentLeft() {
-    gameOver = true;
-    notifyOpponentLeft();
-    onlineStatus.textContent = "对手已离开，点击重新开始即可";
-    showResult("对手离开，游戏结束");
-    saveGameState();
-}
-
-function leaveRoom() {
-    const currentRoomCode = onlineRoomCode;
-    if (currentRoomCode) {
-        localStorage.removeItem(getLocalRoomKey(currentRoomCode));
-        localStorage.removeItem(getLocalStateKey(currentRoomCode));
-        clearLocalIdentity(currentRoomCode);
-    }
-
-    onlineRoomCode = null;
-    onlinePlayerId = null;
-    onlineColor = null;
-    isOnlineMyTurn = false;
-    isOnlineMode = false;
-    updateOnlinePanel("idle");
-}
-
-function restartOnlineRoom() {
-    if (!onlineRoomCode) return;
-    const room = readLocalRoom(onlineRoomCode);
-    if (room) {
-        room.status = "waiting";
-        room.guestId = null;
-        writeLocalRoom(onlineRoomCode, room);
-    }
-
-    const state = createInitialOnlineState(onlineRoomCode, boardSize);
-    state.players = [];
-    writeLocalState(onlineRoomCode, state);
-    applyOnlineState(state);
-    updateOnlinePanel("waiting");
-    onlineStatus.textContent = "房间已重置，可重新开始对局";
-}
-
-function applyOnlineState(state) {
+function applyServerState(state) {
     if (!state) return;
 
-    if (onlineRoomCode) {
-        const localIdentity = loadLocalIdentity(onlineRoomCode);
-        if (localIdentity) {
-            onlinePlayerId = localIdentity.playerId;
-            onlineColor = localIdentity.color;
-        }
+    if (state.code) {
+        onlineRoomCode = state.code;
+    }
+    if (state.myColor) {
+        onlineColor = state.myColor;
     }
 
     boardSize = state.boardSize;
@@ -1540,12 +1376,50 @@ function applyOnlineState(state) {
 
     if (state.gameOver) {
         handleOnlineGameOver({ winner: state.winner ?? 0 });
+        const hasVoted = (state.rematchVotes || []).includes(onlinePlayerId);
+        if (hasVoted) {
+            resultText.textContent = `${resultText.textContent}\n等待对方同意再来一局...`;
+            onlineStatus.textContent = "已请求再来一局，等待对方同意...";
+        }
     } else {
-        const room = readLocalRoom(onlineRoomCode || state.code);
-        updateOnlinePanel(room && room.guestId ? "playing" : "waiting");
+        overlay.classList.add("hidden");
+        updateOnlinePanel(state.status === "waiting" ? "waiting" : "playing");
     }
 
     saveGameState();
+}
+
+function handleOnlineGameOver(message) {
+    gameOver = true;
+
+    if (message.winner === 0) {
+        showResult("平局！");
+    } else {
+        const winnerName = PLAYER_NAMES[message.winner];
+        showResult(`${winnerName}获胜！`);
+    }
+
+    saveGameState();
+}
+
+function leaveRoom() {
+    const currentRoomCode = onlineRoomCode;
+    const currentPlayerId = onlinePlayerId;
+
+    stopOnlinePolling();
+
+    if (currentRoomCode && currentPlayerId) {
+        apiRequest("/leave-room", "POST", { code: currentRoomCode, playerId: currentPlayerId })
+            .catch((error) => console.error(error));
+    }
+
+    clearOnlineIdentity(currentRoomCode);
+    onlineRoomCode = null;
+    onlinePlayerId = null;
+    onlineColor = null;
+    isOnlineMyTurn = false;
+    isOnlineMode = false;
+    updateOnlinePanel("idle");
 }
 
 function updateOnlinePanel(state) {
@@ -1575,8 +1449,6 @@ function updateOnlinePanel(state) {
         roomCodeInput.disabled = true;
     }
 }
-
-window.addEventListener("storage", handleStorageSync);
 
 // ==================== 启动游戏 ====================
 loadSavedTheme();

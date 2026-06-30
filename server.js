@@ -38,11 +38,21 @@ function createRoom(boardSize) {
         currentPlayer: 1,
         gameOver: false,
         winner: null,
-        moveHistory: []
+        moveHistory: [],
+        rematchVotes: new Set()
     };
 
     rooms.set(code, room);
     return room;
+}
+
+function resetRoom(room) {
+    room.board = createBoard(room.boardSize);
+    room.currentPlayer = 1;
+    room.gameOver = false;
+    room.winner = null;
+    room.moveHistory = [];
+    room.rematchVotes.clear();
 }
 
 function getRoomState(room, playerId) {
@@ -59,13 +69,13 @@ function getRoomState(room, playerId) {
         moveHistory: room.moveHistory,
         players: room.players.map((entry) => ({ id: entry.id, color: entry.color })),
         myColor: player ? player.color : null,
-        status
+        status,
+        rematchVotes: Array.from(room.rematchVotes)
     };
 }
 
 function isLegalMove(room, row, col, player) {
     if (room.gameOver) return false;
-    if (room.currentPlayer !== player) return false;
     if (room.board[row][col] !== 0) return false;
 
     const opponent = player === 1 ? 2 : 1;
@@ -99,8 +109,9 @@ function checkGameEnd(room) {
     if (hasLegalMove(room, room.currentPlayer)) return;
 
     const opponent = room.currentPlayer === 1 ? 2 : 1;
+    const winner = hasLegalMove(room, opponent) ? opponent : 0;
     room.gameOver = true;
-    room.winner = hasLegalMove(room, opponent) ? opponent : 0;
+    room.winner = winner;
 }
 
 function parseBody(req, callback) {
@@ -255,6 +266,12 @@ function startServer(port) {
                 return;
             }
 
+            if (room.currentPlayer !== player.color) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "还没轮到你" }));
+                return;
+            }
+
             if (!isLegalMove(room, row, col, player.color)) {
                 res.writeHead(400, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: "非法落子" }));
@@ -265,6 +282,42 @@ function startServer(port) {
             room.moveHistory.push({ row, col, player: player.color });
             room.currentPlayer = player.color === 1 ? 2 : 1;
             checkGameEnd(room);
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
+        });
+        return;
+    }
+
+    if (pathname === "/rematch" && method === "POST") {
+        parseBody(req, (body) => {
+            if (!body) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "缺少参数" }));
+                return;
+            }
+
+            const { code, playerId } = body;
+            const room = rooms.get(code);
+
+            if (!room) {
+                res.writeHead(404, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "房间不存在" }));
+                return;
+            }
+
+            const player = room.players.find((entry) => entry.id === playerId);
+            if (!player) {
+                res.writeHead(403, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "未授权" }));
+                return;
+            }
+
+            room.rematchVotes.add(playerId);
+
+            if (room.rematchVotes.size >= 2) {
+                resetRoom(room);
+            }
 
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
