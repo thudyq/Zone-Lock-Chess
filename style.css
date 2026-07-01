@@ -267,7 +267,6 @@ select {
     height: calc(var(--cell-size) * 0.2);
     border-radius: 50%;
     background-color: var(--legal-move-color);
-    animation: pulse 1.5s infinite ease-in-out;
 }
 
 @keyframes pulse {
