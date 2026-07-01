@@ -551,7 +551,7 @@ function handleMove(row, col) {
 
     if (isOnlineMode) {
         if (!isOnlineMyTurn) {
-            alert("还没轮到你！");
+            alert("请等待对手落子！");
             return;
         }
         sendOnlineMove(row, col);
@@ -717,13 +717,15 @@ function updateTurnText() {
     if (isOnlineMode) {
         if (onlineColor === null) {
             turnText.textContent = "在线对战：请创建房间或加入房间";
-            moveCountText.textContent = "";
             updateOnlinePanel("idle");
         } else {
             const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
-            const turnSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
-            turnText.textContent = `你是${colorText}｜当前：${turnSymbol} ${PLAYER_NAMES[currentPlayer]}`;
-            moveCountText.textContent = isOnlineMyTurn ? "轮到你了" : "等待对手落子";
+            const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
+            const blackMoves = countLegalMoves(PLAYER_BLACK);
+            const whiteMoves = countLegalMoves(PLAYER_WHITE);
+            
+            turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
+            moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
             updateOnlinePanel("playing");
         }
         return;
