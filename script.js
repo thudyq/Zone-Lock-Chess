@@ -306,11 +306,11 @@ function initializeGame() {
 
     board = createEmptyBoard(boardSize);
 
+    updateModeSpecificUI();
     renderBoard();
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
-    updateModeSpecificUI();
     updateReplayControls();
     overlay.classList.add("hidden");
     saveGameState();
@@ -486,7 +486,7 @@ function renderRowLabels() {
 
 function getDisplayPlayerForBoard() {
     if (isOnlineMode) {
-        return onlineColor;
+        return onlineColor !== null ? onlineColor : currentPlayer;
     }
     return currentPlayer;
 }
@@ -715,11 +715,17 @@ function updateTurnText() {
     }
 
     if (isOnlineMode) {
-        const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
-        const turnSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
-        turnText.textContent = `你是${colorText}｜当前：${turnSymbol} ${PLAYER_NAMES[currentPlayer]}`;
-        moveCountText.textContent = isOnlineMyTurn ? "轮到你了" : "等待对手落子";
-        updateOnlinePanel("playing");
+        if (onlineColor === null) {
+            turnText.textContent = "在线对战：请创建房间或加入房间";
+            moveCountText.textContent = "";
+            updateOnlinePanel("idle");
+        } else {
+            const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
+            const turnSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
+            turnText.textContent = `你是${colorText}｜当前：${turnSymbol} ${PLAYER_NAMES[currentPlayer]}`;
+            moveCountText.textContent = isOnlineMyTurn ? "轮到你了" : "等待对手落子";
+            updateOnlinePanel("playing");
+        }
         return;
     }
 
@@ -1454,6 +1460,10 @@ function updateOnlinePanel(state) {
         joinRoomBtn.disabled = true;
         roomCodeInput.disabled = true;
     } else if (state === "playing") {
+        if (onlineColor === null || !onlineRoomCode) {
+            updateOnlinePanel("idle");
+            return;
+        }
         const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
         onlineStatus.textContent = `你是${colorText}，${isOnlineMyTurn ? "轮到你了" : "等待对手"}`;
         roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
