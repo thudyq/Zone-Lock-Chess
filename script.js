@@ -198,7 +198,12 @@ function applyServerUrl() {
 }
 
 // ==================== 事件监听 ====================
-restartBtn.addEventListener("click", initializeGame);
+restartBtn.addEventListener("click", () => {
+    const message = "重新开始游戏将清空当前棋局，是否继续？";
+    if (confirm(message)) {
+        initializeGame();
+    }
+});
 
 boardSizeSelect.addEventListener("change", () => {
     if (isUpdatingBoardSize) return;
@@ -717,13 +722,14 @@ function updateTurnText() {
     if (isOnlineMode) {
         if (onlineColor === null) {
             turnText.textContent = "在线对战：请创建房间或加入房间";
+            moveCountText.textContent = "";
             updateOnlinePanel("idle");
         } else {
             const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
             const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
             const blackMoves = countLegalMoves(PLAYER_BLACK);
             const whiteMoves = countLegalMoves(PLAYER_WHITE);
-            
+
             turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
             moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
             updateOnlinePanel("playing");
