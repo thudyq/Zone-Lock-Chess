@@ -256,7 +256,13 @@ exportResultBtn.addEventListener("click", exportRecord);
 themeToggle.addEventListener("click", toggleTheme);
 
 exportBtn.addEventListener("click", exportRecord);
-importBtn.addEventListener("click", () => importFile.click());
+importBtn.addEventListener("click", () => {
+    if (isOnlineMode) {
+        alert("在线对战模式下不能导入棋谱");
+        return;
+    }
+    importFile.click();
+});
 importFile.addEventListener("change", importRecord);
 
 replayFirstBtn.addEventListener("click", replayFirst);
@@ -407,11 +413,15 @@ function updateModeSpecificUI() {
 
     if (isOnlineMode) {
         onlinePanel.classList.remove("hidden");
+        importBtn.disabled = true;
+        importBtn.title = "在线对战模式下不能导入棋谱";
     } else {
         onlinePanel.classList.add("hidden");
         if (onlineRoomCode) {
             leaveRoom();
         }
+        importBtn.disabled = false;
+        importBtn.title = "";
     }
 }
 
@@ -1237,11 +1247,16 @@ function clearOnlineIdentity(code) {
 }
 
 async function apiRequest(path, method, body) {
-    const response = await fetch(`${serverUrl}${path}`, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined
-    });
+    let response;
+    try {
+        response = await fetch(`${serverUrl}${path}`, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: body ? JSON.stringify(body) : undefined
+        });
+    } catch (networkError) {
+        throw new Error(`无法连接到服务器 (${serverUrl})，请确认：1. 已运行 node server.js；2. 浏览器通过 http://localhost:3000 访问本页面。`);
+    }
 
     const text = await response.text();
     const data = text ? JSON.parse(text) : null;
