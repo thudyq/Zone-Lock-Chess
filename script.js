@@ -107,7 +107,6 @@ let onlineRoomCode = null;
 let onlinePlayerId = null;
 let onlinePollingTimer = null;
 let isOnlineMyTurn = false;
-let lastPromptedPendingBoardSize = null;
 let localChannel = null;
 let localSyncEnabled = false;
 
@@ -208,29 +207,6 @@ restartBtn.addEventListener("click", () => {
 
 boardSizeSelect.addEventListener("change", () => {
     if (isUpdatingBoardSize) return;
-
-    if (isOnlineMode) {
-        if (!onlineRoomCode || !onlinePlayerId) {
-            alert("请先创建或加入房间");
-            isUpdatingBoardSize = true;
-            boardSizeSelect.value = previousBoardSize;
-            isUpdatingBoardSize = false;
-            return;
-        }
-
-        const newSize = Number(boardSizeSelect.value);
-        const message = `在线对战中修改棋盘大小需要双方确认。\n你提议将棋盘大小改为 ${newSize}×${newSize}，是否发送请求？`;
-        if (confirm(message)) {
-            previousBoardSize = boardSizeSelect.value;
-            sendChangeBoardSizeRequest(newSize);
-        } else {
-            isUpdatingBoardSize = true;
-            boardSizeSelect.value = previousBoardSize;
-            isUpdatingBoardSize = false;
-        }
-        return;
-    }
-
     const message = "修改棋盘大小将重新开始游戏，是否继续？";
     if (confirm(message)) {
         previousBoardSize = boardSizeSelect.value;
@@ -328,7 +304,6 @@ function initializeGame() {
     boardSize = Number(boardSizeSelect.value);
     lastPlacedPosition = null;
     isOnlineMyTurn = false;
-    lastPromptedPendingBoardSize = null;
 
     previousBoardSize = boardSizeSelect.value;
     previousGameMode = gameModeSelect.value;
@@ -1298,12 +1273,7 @@ async function apiRequest(path, method, body) {
     }
 
     const text = await response.text();
-    let data = null;
-    try {
-        data = text ? JSON.parse(text) : null;
-    } catch (parseError) {
-        throw new Error(`服务器返回了无法识别的响应：${text.slice(0, 100)}`);
-    }
+    const data = text ? JSON.parse(text) : null;
 
     if (!response.ok) {
         throw new Error(data && data.error ? data.error : `请求失败 ${response.status}`);
@@ -1314,7 +1284,7 @@ async function apiRequest(path, method, body) {
 
 function startOnlinePolling() {
     stopOnlinePolling();
-    onlinePollingTimer = setInterval(pollServerState, 500);
+    onlinePollingTimer = setInterval(pollServerState, 1000);
 }
 
 function stopOnlinePolling() {
@@ -1410,43 +1380,6 @@ function sendRematchRequest() {
         });
 }
 
-function sendChangeBoardSizeRequest(newSize) {
-    if (!onlineRoomCode || !onlinePlayerId) return;
-
-    stopOnlinePolling();
-    apiRequest("/change-board-size", "POST", {
-        code: onlineRoomCode,
-        playerId: onlinePlayerId,
-        boardSize: newSize
-    })
-        .then((data) => {
-            applyServerState(data.state);
-            startOnlinePolling();
-        })
-        .catch((error) => {
-            alert(error.message);
-            startOnlinePolling();
-        });
-}
-
-function sendCancelBoardSizeChangeRequest() {
-    if (!onlineRoomCode || !onlinePlayerId) return;
-
-    stopOnlinePolling();
-    apiRequest("/cancel-board-size-change", "POST", {
-        code: onlineRoomCode,
-        playerId: onlinePlayerId
-    })
-        .then((data) => {
-            applyServerState(data.state);
-            startOnlinePolling();
-        })
-        .catch((error) => {
-            alert(error.message);
-            startOnlinePolling();
-        });
-}
-
 function applyServerState(state) {
     if (!state) return;
 
@@ -1458,28 +1391,17 @@ function applyServerState(state) {
     }
 
     boardSize = state.boardSize;
+    boardSizeSelect.value = String(boardSize);
     board = (state.board || []).map((row) => [...row]);
     currentPlayer = state.currentPlayer;
     gameOver = !!state.gameOver;
     moveHistory = (state.moveHistory || []).map((move) => ({ ...move }));
     isOnlineMyTurn = currentPlayer === onlineColor;
 
-    const pendingSize = state.pendingBoardSize;
-    const hasBoardSizeVoted = pendingSize !== null && pendingSize !== undefined &&
-        (state.boardSizeVotes || []).includes(onlinePlayerId);
-
-    if (pendingSize !== null && pendingSize !== undefined) {
-        boardSizeSelect.value = String(pendingSize);
-    } else {
-        boardSizeSelect.value = String(boardSize);
-    }
-
     renderBoard();
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
-
-    handleBoardSizeVotePrompt(state);
 
     if (state.gameOver) {
         handleOnlineGameOver({ winner: state.winner ?? 0 });
@@ -1493,31 +1415,7 @@ function applyServerState(state) {
         updateOnlinePanel(state.status === "waiting" ? "waiting" : "playing");
     }
 
-    if (pendingSize !== null && pendingSize !== undefined && hasBoardSizeVoted) {
-        onlineStatus.textContent = `已提议改为 ${pendingSize}×${pendingSize}，等待对方同意...`;
-    }
-
     saveGameState();
-}
-
-function handleBoardSizeVotePrompt(state) {
-    if (!isOnlineMode || state.pendingBoardSize === null || state.pendingBoardSize === undefined) {
-        lastPromptedPendingBoardSize = null;
-        return;
-    }
-
-    const hasVoted = (state.boardSizeVotes || []).includes(onlinePlayerId);
-    if (hasVoted || state.pendingBoardSize === lastPromptedPendingBoardSize) {
-        return;
-    }
-
-    lastPromptedPendingBoardSize = state.pendingBoardSize;
-    const agreed = confirm(`对方提议将棋盘大小改为 ${state.pendingBoardSize}×${state.pendingBoardSize}，是否同意？`);
-    if (agreed) {
-        sendChangeBoardSizeRequest(state.pendingBoardSize);
-    } else {
-        sendCancelBoardSizeChangeRequest();
-    }
 }
 
 function handleOnlineGameOver(message) {
@@ -1550,7 +1448,6 @@ function leaveRoom() {
     onlineColor = null;
     isOnlineMyTurn = false;
     isOnlineMode = false;
-    lastPromptedPendingBoardSize = null;
     updateOnlinePanel("idle");
 }
 

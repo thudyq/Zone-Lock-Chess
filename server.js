@@ -39,9 +39,7 @@ function createRoom(boardSize) {
         gameOver: false,
         winner: null,
         moveHistory: [],
-        rematchVotes: new Set(),
-        pendingBoardSize: null,
-        boardSizeVotes: new Set()
+        rematchVotes: new Set()
     };
 
     rooms.set(code, room);
@@ -55,8 +53,6 @@ function resetRoom(room) {
     room.winner = null;
     room.moveHistory = [];
     room.rematchVotes.clear();
-    room.pendingBoardSize = null;
-    room.boardSizeVotes.clear();
 }
 
 function getRoomState(room, playerId) {
@@ -74,9 +70,7 @@ function getRoomState(room, playerId) {
         players: room.players.map((entry) => ({ id: entry.id, color: entry.color })),
         myColor: player ? player.color : null,
         status,
-        rematchVotes: Array.from(room.rematchVotes),
-        pendingBoardSize: room.pendingBoardSize,
-        boardSizeVotes: Array.from(room.boardSizeVotes)
+        rematchVotes: Array.from(room.rematchVotes)
     };
 }
 
@@ -331,89 +325,6 @@ function startServer(port) {
         return;
     }
 
-    if (pathname === "/change-board-size" && method === "POST") {
-        parseBody(req, (body) => {
-            if (!body) {
-                res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "缺少参数" }));
-                return;
-            }
-
-            const { code, playerId, boardSize } = body;
-            const room = rooms.get(code);
-
-            if (!room) {
-                res.writeHead(404, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "房间不存在" }));
-                return;
-            }
-
-            const player = room.players.find((entry) => entry.id === playerId);
-            if (!player) {
-                res.writeHead(403, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "未授权" }));
-                return;
-            }
-
-            const validSizes = [6, 8, 10, 12];
-            const newSize = Number(boardSize);
-            if (!validSizes.includes(newSize)) {
-                res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "非法棋盘大小" }));
-                return;
-            }
-
-            if (room.pendingBoardSize !== newSize) {
-                room.pendingBoardSize = newSize;
-                room.boardSizeVotes.clear();
-            }
-
-            room.boardSizeVotes.add(playerId);
-
-            if (room.boardSizeVotes.size >= 2) {
-                room.boardSize = newSize;
-                resetRoom(room);
-            }
-
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
-        });
-        return;
-    }
-
-    if (pathname === "/cancel-board-size-change" && method === "POST") {
-        parseBody(req, (body) => {
-            if (!body) {
-                res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "缺少参数" }));
-                return;
-            }
-
-            const { code, playerId } = body;
-            const room = rooms.get(code);
-
-            if (!room) {
-                res.writeHead(404, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "房间不存在" }));
-                return;
-            }
-
-            const player = room.players.find((entry) => entry.id === playerId);
-            if (!player) {
-                res.writeHead(403, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "未授权" }));
-                return;
-            }
-
-            room.pendingBoardSize = null;
-            room.boardSizeVotes.clear();
-
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
-        });
-        return;
-    }
-
     if (pathname === "/leave-room" && method === "POST") {
         parseBody(req, (body) => {
             const { code, playerId } = body || {};
@@ -436,8 +347,8 @@ function startServer(port) {
         return;
     }
 
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not found" }));
+    res.writeHead(404);
+    res.end("Not found");
     });
 
     server.on("error", (error) => {
