@@ -41,7 +41,8 @@ function createRoom(boardSize) {
         moveHistory: [],
         rematchVotes: new Set(),
         pendingBoardSize: null,
-        boardSizeVotes: new Set()
+        boardSizeVotes: new Set(),
+        boardSizeProposalBy: null
     };
 
     rooms.set(code, room);
@@ -57,6 +58,7 @@ function resetRoom(room) {
     room.rematchVotes.clear();
     room.pendingBoardSize = null;
     room.boardSizeVotes.clear();
+    room.boardSizeProposalBy = null;
 }
 
 function getRoomState(room, playerId) {
@@ -76,7 +78,8 @@ function getRoomState(room, playerId) {
         status,
         rematchVotes: Array.from(room.rematchVotes),
         pendingBoardSize: room.pendingBoardSize,
-        boardSizeVotes: Array.from(room.boardSizeVotes)
+        boardSizeVotes: Array.from(room.boardSizeVotes),
+        boardSizeProposalBy: room.boardSizeProposalBy
     };
 }
 
@@ -339,7 +342,7 @@ function startServer(port) {
                 return;
             }
 
-            const { code, playerId, boardSize } = body;
+            const { code, playerId, boardSize, action } = body;
             const room = rooms.get(code);
 
             if (!room) {
@@ -363,16 +366,27 @@ function startServer(port) {
                 return;
             }
 
-            if (room.pendingBoardSize !== newSize) {
-                room.pendingBoardSize = newSize;
-                room.boardSizeVotes.clear();
-            }
+            if (action === "approve") {
+                if (room.pendingBoardSize === null || room.pendingBoardSize === undefined) {
+                    res.writeHead(400, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "当前没有待确认的棋盘大小" }));
+                    return;
+                }
 
-            room.boardSizeVotes.add(playerId);
-
-            if (room.boardSizeVotes.size >= 2) {
-                room.boardSize = newSize;
+                room.boardSize = room.pendingBoardSize;
                 resetRoom(room);
+            } else if (action === "reject") {
+                room.pendingBoardSize = null;
+                room.boardSizeProposalBy = null;
+                room.boardSizeVotes.clear();
+            } else {
+                if (room.pendingBoardSize !== newSize) {
+                    room.pendingBoardSize = newSize;
+                    room.boardSizeProposalBy = playerId;
+                    room.boardSizeVotes.clear();
+                }
+
+                room.boardSizeVotes.add(playerId);
             }
 
             res.writeHead(200, { "Content-Type": "application/json" });
@@ -407,6 +421,7 @@ function startServer(port) {
 
             room.pendingBoardSize = null;
             room.boardSizeVotes.clear();
+            room.boardSizeProposalBy = null;
 
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));

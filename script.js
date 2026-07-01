@@ -76,6 +76,11 @@ const applyServerUrlBtn = document.getElementById("applyServerUrlBtn");
 const onlineStatus = document.getElementById("onlineStatus");
 const roomCodeDisplay = document.getElementById("roomCodeDisplay");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
+const confirmModal = document.getElementById("confirmModal");
+const confirmTitle = document.getElementById("confirmTitle");
+const confirmMessage = document.getElementById("confirmMessage");
+const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+const confirmOkBtn = document.getElementById("confirmOkBtn");
 
 // ==================== 游戏状态 ====================
 let boardSize = 8;
@@ -108,6 +113,7 @@ let onlinePlayerId = null;
 let onlinePollingTimer = null;
 let isOnlineMyTurn = false;
 let lastPromptedPendingBoardSize = null;
+let boardSizePromptResolver = null;
 let localChannel = null;
 let localSyncEnabled = false;
 
@@ -1285,6 +1291,38 @@ function clearOnlineIdentity(code) {
     sessionStorage.removeItem(getOnlineIdentityKey(code));
 }
 
+function showConfirmDialog(message) {
+    return new Promise((resolve) => {
+        confirmMessage.textContent = message;
+        confirmTitle.textContent = "提示";
+        confirmModal.classList.remove("hidden");
+
+        const cleanup = () => {
+            confirmModal.classList.add("hidden");
+            confirmOkBtn.onclick = null;
+            confirmCancelBtn.onclick = null;
+            confirmModal.onclick = null;
+        };
+
+        confirmOkBtn.onclick = () => {
+            cleanup();
+            resolve("confirm");
+        };
+
+        confirmCancelBtn.onclick = () => {
+            cleanup();
+            resolve("cancel");
+        };
+
+        confirmModal.onclick = (event) => {
+            if (event.target === confirmModal) {
+                cleanup();
+                resolve("dismiss");
+            }
+        };
+    });
+}
+
 async function apiRequest(path, method, body) {
     let response;
     try {
@@ -1314,7 +1352,7 @@ async function apiRequest(path, method, body) {
 
 function startOnlinePolling() {
     stopOnlinePolling();
-    onlinePollingTimer = setInterval(pollServerState, 500);
+    onlinePollingTimer = setInterval(pollServerState, 250);
 }
 
 function stopOnlinePolling() {
@@ -1417,7 +1455,8 @@ function sendChangeBoardSizeRequest(newSize) {
     apiRequest("/change-board-size", "POST", {
         code: onlineRoomCode,
         playerId: onlinePlayerId,
-        boardSize: newSize
+        boardSize: newSize,
+        action: "propose"
     })
         .then((data) => {
             applyServerState(data.state);
@@ -1467,6 +1506,8 @@ function applyServerState(state) {
     const pendingSize = state.pendingBoardSize;
     const hasBoardSizeVoted = pendingSize !== null && pendingSize !== undefined &&
         (state.boardSizeVotes || []).includes(onlinePlayerId);
+    const isProposalOwner = pendingSize !== null && pendingSize !== undefined &&
+        state.boardSizeProposalBy === onlinePlayerId;
 
     if (pendingSize !== null && pendingSize !== undefined) {
         boardSizeSelect.value = String(pendingSize);
@@ -1493,8 +1534,10 @@ function applyServerState(state) {
         updateOnlinePanel(state.status === "waiting" ? "waiting" : "playing");
     }
 
-    if (pendingSize !== null && pendingSize !== undefined && hasBoardSizeVoted) {
-        onlineStatus.textContent = `已提议改为 ${pendingSize}×${pendingSize}，等待对方同意...`;
+    if (pendingSize !== null && pendingSize !== undefined && isProposalOwner) {
+        onlineStatus.textContent = `已提议改为 ${pendingSize}×${pendingSize}，等待对方确认...`;
+    } else if (pendingSize !== null && pendingSize !== undefined && hasBoardSizeVoted) {
+        onlineStatus.textContent = `已收到对方的提议，等待你确认...`;
     }
 
     saveGameState();
@@ -1512,12 +1555,36 @@ function handleBoardSizeVotePrompt(state) {
     }
 
     lastPromptedPendingBoardSize = state.pendingBoardSize;
-    const agreed = confirm(`对方提议将棋盘大小改为 ${state.pendingBoardSize}×${state.pendingBoardSize}，是否同意？`);
-    if (agreed) {
-        sendChangeBoardSizeRequest(state.pendingBoardSize);
-    } else {
-        sendCancelBoardSizeChangeRequest();
-    }
+    showConfirmDialog(`对方提议将棋盘大小改为 ${state.pendingBoardSize}×${state.pendingBoardSize}，是否同意？`)
+        .then((result) => {
+            if (result === "confirm") {
+                apiRequest("/change-board-size", "POST", {
+                    code: onlineRoomCode,
+                    playerId: onlinePlayerId,
+                    boardSize: state.pendingBoardSize,
+                    action: "approve"
+                })
+                    .then((data) => {
+                        applyServerState(data.state);
+                    })
+                    .catch((error) => {
+                        alert(error.message);
+                    });
+            } else if (result === "cancel") {
+                apiRequest("/change-board-size", "POST", {
+                    code: onlineRoomCode,
+                    playerId: onlinePlayerId,
+                    boardSize: state.pendingBoardSize,
+                    action: "reject"
+                })
+                    .then((data) => {
+                        applyServerState(data.state);
+                    })
+                    .catch((error) => {
+                        alert(error.message);
+                    });
+            }
+        });
 }
 
 function handleOnlineGameOver(message) {
