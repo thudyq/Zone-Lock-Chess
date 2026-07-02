@@ -45,7 +45,10 @@ function createRoom(boardSize) {
         boardSizeProposalBy: null,
         pendingRestart: false,
         restartVotes: new Set(),
-        restartProposalBy: null
+        restartProposalBy: null,
+        pendingUndo: false,
+        undoVotes: new Set(),
+        undoProposalBy: null
     };
 
     rooms.set(code, room);
@@ -65,6 +68,19 @@ function resetRoom(room) {
     room.pendingRestart = false;
     room.restartVotes.clear();
     room.restartProposalBy = null;
+    room.pendingUndo = false;
+    room.undoVotes.clear();
+    room.undoProposalBy = null;
+}
+
+function undoLastMove(room) {
+    if (room.moveHistory.length === 0) return;
+
+    const lastMove = room.moveHistory.pop();
+    room.board[lastMove.row][lastMove.col] = 0;
+    room.currentPlayer = lastMove.player;
+    room.gameOver = false;
+    room.winner = null;
 }
 
 function getRoomState(room, playerId) {
@@ -88,7 +104,10 @@ function getRoomState(room, playerId) {
         boardSizeProposalBy: room.boardSizeProposalBy,
         pendingRestart: room.pendingRestart,
         restartVotes: Array.from(room.restartVotes),
-        restartProposalBy: room.restartProposalBy
+        restartProposalBy: room.restartProposalBy,
+        pendingUndo: room.pendingUndo,
+        undoVotes: Array.from(room.undoVotes),
+        undoProposalBy: room.undoProposalBy
     };
 }
 
@@ -485,6 +504,74 @@ function startServer(port) {
 
                 if (room.restartVotes.size >= 2) {
                     resetRoom(room);
+                }
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
+        });
+        return;
+    }
+
+    if (pathname === "/undo" && method === "POST") {
+        parseBody(req, (body) => {
+            if (!body) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "缺少参数" }));
+                return;
+            }
+
+            const { code, playerId, action } = body;
+            const room = rooms.get(code);
+
+            if (!room) {
+                res.writeHead(404, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "房间不存在" }));
+                return;
+            }
+
+            const player = room.players.find((entry) => entry.id === playerId);
+            if (!player) {
+                res.writeHead(403, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "未授权" }));
+                return;
+            }
+
+            if (action === "approve") {
+                if (!room.pendingUndo) {
+                    res.writeHead(400, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "当前没有待确认的悔棋请求" }));
+                    return;
+                }
+
+                undoLastMove(room);
+                room.pendingUndo = false;
+                room.undoVotes.clear();
+                room.undoProposalBy = null;
+            } else if (action === "reject") {
+                room.pendingUndo = false;
+                room.undoVotes.clear();
+                room.undoProposalBy = null;
+            } else {
+                if (room.moveHistory.length === 0) {
+                    res.writeHead(400, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "没有可悔的棋子" }));
+                    return;
+                }
+
+                if (!room.pendingUndo) {
+                    room.pendingUndo = true;
+                    room.undoProposalBy = playerId;
+                    room.undoVotes.clear();
+                }
+
+                room.undoVotes.add(playerId);
+
+                if (room.undoVotes.size >= 2) {
+                    undoLastMove(room);
+                    room.pendingUndo = false;
+                    room.undoVotes.clear();
+                    room.undoProposalBy = null;
                 }
             }
 

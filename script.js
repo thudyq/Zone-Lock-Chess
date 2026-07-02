@@ -116,6 +116,8 @@ let lastPromptedPendingBoardSize = null;
 let boardSizePromptResolver = null;
 let lastPromptedPendingRestart = false;
 let restartPromptResolver = null;
+let lastPromptedPendingUndo = false;
+let undoPromptResolver = null;
 let localChannel = null;
 let localSyncEnabled = false;
 
@@ -290,7 +292,27 @@ aiDifficultySelect.addEventListener("change", () => {
     }
 });
 
-undoBtn.addEventListener("click", undoMove);
+undoBtn.addEventListener("click", () => {
+    if (isOnlineMode) {
+        if (!onlineRoomCode || !onlinePlayerId) {
+            alert("请先创建或加入房间");
+            return;
+        }
+
+        if (moveHistory.length === 0) {
+            alert("没有可悔的棋子");
+            return;
+        }
+
+        const message = "在线对战中悔棋需要双方确认。\n你提议悔掉上一步，是否发送请求？";
+        if (confirm(message)) {
+            sendUndoRequest();
+        }
+        return;
+    }
+
+    undoMove();
+});
 
 playAgainBtn.addEventListener("click", () => {
     if (isOnlineMode) {
@@ -353,6 +375,8 @@ function initializeGame() {
     boardSizePromptResolver = null;
     lastPromptedPendingRestart = false;
     restartPromptResolver = null;
+    lastPromptedPendingUndo = false;
+    undoPromptResolver = null;
 
     previousBoardSize = boardSizeSelect.value;
     previousGameMode = gameModeSelect.value;
@@ -1561,6 +1585,63 @@ function sendRejectRestartRequest() {
         });
 }
 
+function sendUndoRequest() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
+
+    stopOnlinePolling();
+    apiRequest("/undo", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        action: "propose"
+    })
+        .then((data) => {
+            applyServerState(data.state);
+            startOnlinePolling();
+        })
+        .catch((error) => {
+            alert(error.message);
+            startOnlinePolling();
+        });
+}
+
+function sendApproveUndoRequest() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
+
+    stopOnlinePolling();
+    apiRequest("/undo", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        action: "approve"
+    })
+        .then((data) => {
+            applyServerState(data.state);
+            startOnlinePolling();
+        })
+        .catch((error) => {
+            alert(error.message);
+            startOnlinePolling();
+        });
+}
+
+function sendRejectUndoRequest() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
+
+    stopOnlinePolling();
+    apiRequest("/undo", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        action: "reject"
+    })
+        .then((data) => {
+            applyServerState(data.state);
+            startOnlinePolling();
+        })
+        .catch((error) => {
+            alert(error.message);
+            startOnlinePolling();
+        });
+}
+
 function applyServerState(state) {
     if (!state) return;
 
@@ -1595,6 +1676,7 @@ function applyServerState(state) {
     }
 
     const isRestartProposalOwner = state.pendingRestart && state.restartProposalBy === onlinePlayerId;
+    const isUndoProposalOwner = state.pendingUndo && state.undoProposalBy === onlinePlayerId;
 
     renderBoard();
     updateTurnText();
@@ -1603,6 +1685,7 @@ function applyServerState(state) {
 
     handleBoardSizeVotePrompt(state);
     handleRestartVotePrompt(state);
+    handleUndoVotePrompt(state);
 
     if (state.gameOver) {
         handleOnlineGameOver({ winner: state.winner ?? 0 });
@@ -1626,6 +1709,12 @@ function applyServerState(state) {
         onlineStatus.textContent = "已提议重新开始，等待对方确认...";
     } else if (state.pendingRestart && !isRestartProposalOwner) {
         onlineStatus.textContent = "对方提议重新开始，等待你确认...";
+    }
+
+    if (state.pendingUndo && isUndoProposalOwner) {
+        onlineStatus.textContent = "已提议悔棋，等待对方确认...";
+    } else if (state.pendingUndo && !isUndoProposalOwner) {
+        onlineStatus.textContent = "对方提议悔棋，等待你确认...";
     }
 
     saveGameState();
@@ -1662,6 +1751,40 @@ function handleRestartVotePrompt(state) {
         })
         .finally(() => {
             restartPromptResolver = null;
+        });
+}
+
+function handleUndoVotePrompt(state) {
+    if (!isOnlineMode || !state.pendingUndo) {
+        lastPromptedPendingUndo = false;
+        undoPromptResolver = null;
+        return;
+    }
+
+    const hasVoted = (state.undoVotes || []).includes(onlinePlayerId);
+    const isProposalOwner = state.undoProposalBy === onlinePlayerId;
+    if (hasVoted || isProposalOwner) {
+        return;
+    }
+
+    if (undoPromptResolver || lastPromptedPendingUndo) {
+        return;
+    }
+
+    lastPromptedPendingUndo = true;
+    undoPromptResolver = true;
+    showConfirmDialog("对方提议悔掉上一步，是否同意？")
+        .then((result) => {
+            if (result === "confirm") {
+                sendApproveUndoRequest();
+            } else if (result === "cancel") {
+                sendRejectUndoRequest();
+            } else if (result === "dismiss") {
+                lastPromptedPendingUndo = false;
+            }
+        })
+        .finally(() => {
+            undoPromptResolver = null;
         });
 }
 
@@ -1755,6 +1878,8 @@ function leaveRoom() {
     boardSizePromptResolver = null;
     lastPromptedPendingRestart = false;
     restartPromptResolver = null;
+    lastPromptedPendingUndo = false;
+    undoPromptResolver = null;
     updateOnlinePanel("idle");
 }
 
@@ -1780,7 +1905,7 @@ function updateOnlinePanel(state) {
             return;
         }
         const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
-        onlineStatus.textContent = `你是${colorText}，${isOnlineMyTurn ? "轮到你了" : "等待对手"}`;
+        onlineStatus.textContent = "";
         roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
         roomCodeDisplay.classList.remove("hidden");
         leaveRoomBtn.classList.remove("hidden");
