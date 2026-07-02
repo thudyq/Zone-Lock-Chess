@@ -114,6 +114,8 @@ let onlinePollingTimer = null;
 let isOnlineMyTurn = false;
 let lastPromptedPendingBoardSize = null;
 let boardSizePromptResolver = null;
+let lastPromptedPendingRestart = false;
+let restartPromptResolver = null;
 let localChannel = null;
 let localSyncEnabled = false;
 
@@ -206,6 +208,19 @@ function applyServerUrl() {
 
 // ==================== 事件监听 ====================
 restartBtn.addEventListener("click", () => {
+    if (isOnlineMode) {
+        if (!onlineRoomCode || !onlinePlayerId) {
+            alert("请先创建或加入房间");
+            return;
+        }
+
+        const message = "在线对战中重新开始需要双方确认。\n你提议重新开始当前棋局，是否发送请求？";
+        if (confirm(message)) {
+            sendRestartRequest();
+        }
+        return;
+    }
+
     const message = "重新开始游戏将清空当前棋局，是否继续？";
     if (confirm(message)) {
         initializeGame();
@@ -335,6 +350,9 @@ function initializeGame() {
     lastPlacedPosition = null;
     isOnlineMyTurn = false;
     lastPromptedPendingBoardSize = null;
+    boardSizePromptResolver = null;
+    lastPromptedPendingRestart = false;
+    restartPromptResolver = null;
 
     previousBoardSize = boardSizeSelect.value;
     previousGameMode = gameModeSelect.value;
@@ -1486,6 +1504,63 @@ function sendCancelBoardSizeChangeRequest() {
         });
 }
 
+function sendRestartRequest() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
+
+    stopOnlinePolling();
+    apiRequest("/restart", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        action: "propose"
+    })
+        .then((data) => {
+            applyServerState(data.state);
+            startOnlinePolling();
+        })
+        .catch((error) => {
+            alert(error.message);
+            startOnlinePolling();
+        });
+}
+
+function sendApproveRestartRequest() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
+
+    stopOnlinePolling();
+    apiRequest("/restart", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        action: "approve"
+    })
+        .then((data) => {
+            applyServerState(data.state);
+            startOnlinePolling();
+        })
+        .catch((error) => {
+            alert(error.message);
+            startOnlinePolling();
+        });
+}
+
+function sendRejectRestartRequest() {
+    if (!onlineRoomCode || !onlinePlayerId) return;
+
+    stopOnlinePolling();
+    apiRequest("/restart", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        action: "reject"
+    })
+        .then((data) => {
+            applyServerState(data.state);
+            startOnlinePolling();
+        })
+        .catch((error) => {
+            alert(error.message);
+            startOnlinePolling();
+        });
+}
+
 function applyServerState(state) {
     if (!state) return;
 
@@ -1519,12 +1594,15 @@ function applyServerState(state) {
         isUpdatingBoardSize = false;
     }
 
+    const isRestartProposalOwner = state.pendingRestart && state.restartProposalBy === onlinePlayerId;
+
     renderBoard();
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
 
     handleBoardSizeVotePrompt(state);
+    handleRestartVotePrompt(state);
 
     if (state.gameOver) {
         handleOnlineGameOver({ winner: state.winner ?? 0 });
@@ -1544,7 +1622,47 @@ function applyServerState(state) {
         onlineStatus.textContent = `对方提议改为 ${pendingSize}×${pendingSize}，等待你确认...`;
     }
 
+    if (state.pendingRestart && isRestartProposalOwner) {
+        onlineStatus.textContent = "已提议重新开始，等待对方确认...";
+    } else if (state.pendingRestart && !isRestartProposalOwner) {
+        onlineStatus.textContent = "对方提议重新开始，等待你确认...";
+    }
+
     saveGameState();
+}
+
+function handleRestartVotePrompt(state) {
+    if (!isOnlineMode || !state.pendingRestart) {
+        lastPromptedPendingRestart = false;
+        restartPromptResolver = null;
+        return;
+    }
+
+    const hasVoted = (state.restartVotes || []).includes(onlinePlayerId);
+    const isProposalOwner = state.restartProposalBy === onlinePlayerId;
+    if (hasVoted || isProposalOwner) {
+        return;
+    }
+
+    if (restartPromptResolver || lastPromptedPendingRestart) {
+        return;
+    }
+
+    lastPromptedPendingRestart = true;
+    restartPromptResolver = true;
+    showConfirmDialog("对方提议重新开始当前棋局，是否同意？")
+        .then((result) => {
+            if (result === "confirm") {
+                sendApproveRestartRequest();
+            } else if (result === "cancel") {
+                sendRejectRestartRequest();
+            } else if (result === "dismiss") {
+                lastPromptedPendingRestart = false;
+            }
+        })
+        .finally(() => {
+            restartPromptResolver = null;
+        });
 }
 
 function handleBoardSizeVotePrompt(state) {
@@ -1634,6 +1752,9 @@ function leaveRoom() {
     isOnlineMyTurn = false;
     isOnlineMode = false;
     lastPromptedPendingBoardSize = null;
+    boardSizePromptResolver = null;
+    lastPromptedPendingRestart = false;
+    restartPromptResolver = null;
     updateOnlinePanel("idle");
 }
 

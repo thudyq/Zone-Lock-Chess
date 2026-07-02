@@ -42,7 +42,10 @@ function createRoom(boardSize) {
         rematchVotes: new Set(),
         pendingBoardSize: null,
         boardSizeVotes: new Set(),
-        boardSizeProposalBy: null
+        boardSizeProposalBy: null,
+        pendingRestart: false,
+        restartVotes: new Set(),
+        restartProposalBy: null
     };
 
     rooms.set(code, room);
@@ -59,6 +62,9 @@ function resetRoom(room) {
     room.pendingBoardSize = null;
     room.boardSizeVotes.clear();
     room.boardSizeProposalBy = null;
+    room.pendingRestart = false;
+    room.restartVotes.clear();
+    room.restartProposalBy = null;
 }
 
 function getRoomState(room, playerId) {
@@ -79,7 +85,10 @@ function getRoomState(room, playerId) {
         rematchVotes: Array.from(room.rematchVotes),
         pendingBoardSize: room.pendingBoardSize,
         boardSizeVotes: Array.from(room.boardSizeVotes),
-        boardSizeProposalBy: room.boardSizeProposalBy
+        boardSizeProposalBy: room.boardSizeProposalBy,
+        pendingRestart: room.pendingRestart,
+        restartVotes: Array.from(room.restartVotes),
+        restartProposalBy: room.restartProposalBy
     };
 }
 
@@ -422,6 +431,62 @@ function startServer(port) {
             room.pendingBoardSize = null;
             room.boardSizeVotes.clear();
             room.boardSizeProposalBy = null;
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
+        });
+        return;
+    }
+
+    if (pathname === "/restart" && method === "POST") {
+        parseBody(req, (body) => {
+            if (!body) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "缺少参数" }));
+                return;
+            }
+
+            const { code, playerId, action } = body;
+            const room = rooms.get(code);
+
+            if (!room) {
+                res.writeHead(404, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "房间不存在" }));
+                return;
+            }
+
+            const player = room.players.find((entry) => entry.id === playerId);
+            if (!player) {
+                res.writeHead(403, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "未授权" }));
+                return;
+            }
+
+            if (action === "approve") {
+                if (!room.pendingRestart) {
+                    res.writeHead(400, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "当前没有待确认的重开请求" }));
+                    return;
+                }
+
+                resetRoom(room);
+            } else if (action === "reject") {
+                room.pendingRestart = false;
+                room.restartVotes.clear();
+                room.restartProposalBy = null;
+            } else {
+                if (!room.pendingRestart) {
+                    room.pendingRestart = true;
+                    room.restartProposalBy = playerId;
+                    room.restartVotes.clear();
+                }
+
+                room.restartVotes.add(playerId);
+
+                if (room.restartVotes.size >= 2) {
+                    resetRoom(room);
+                }
+            }
 
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
