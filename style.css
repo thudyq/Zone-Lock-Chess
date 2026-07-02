@@ -461,6 +461,51 @@ select {
     margin-top: 20px;
 }
 
+#confirmModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 9999;
+}
+
+#confirmBox {
+    width: min(92vw, 360px);
+    padding: 24px;
+    background: var(--panel-bg);
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+    color: var(--text-color);
+}
+
+#confirmTitle {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 18px;
+}
+
+#confirmMessage {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+#confirmActions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+#confirmActions button {
+    min-width: 80px;
+}
+
 /* 响应式布局 */
 @media (max-width: 900px) {
     :root {

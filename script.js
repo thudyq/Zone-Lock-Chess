@@ -1510,9 +1510,13 @@ function applyServerState(state) {
         state.boardSizeProposalBy === onlinePlayerId;
 
     if (pendingSize !== null && pendingSize !== undefined) {
+        isUpdatingBoardSize = true;
         boardSizeSelect.value = String(pendingSize);
+        isUpdatingBoardSize = false;
     } else {
+        isUpdatingBoardSize = true;
         boardSizeSelect.value = String(boardSize);
+        isUpdatingBoardSize = false;
     }
 
     renderBoard();
@@ -1536,8 +1540,8 @@ function applyServerState(state) {
 
     if (pendingSize !== null && pendingSize !== undefined && isProposalOwner) {
         onlineStatus.textContent = `已提议改为 ${pendingSize}×${pendingSize}，等待对方确认...`;
-    } else if (pendingSize !== null && pendingSize !== undefined && hasBoardSizeVoted) {
-        onlineStatus.textContent = `已收到对方的提议，等待你确认...`;
+    } else if (pendingSize !== null && pendingSize !== undefined && !isProposalOwner) {
+        onlineStatus.textContent = `对方提议改为 ${pendingSize}×${pendingSize}，等待你确认...`;
     }
 
     saveGameState();
@@ -1546,15 +1550,22 @@ function applyServerState(state) {
 function handleBoardSizeVotePrompt(state) {
     if (!isOnlineMode || state.pendingBoardSize === null || state.pendingBoardSize === undefined) {
         lastPromptedPendingBoardSize = null;
+        boardSizePromptResolver = null;
         return;
     }
 
     const hasVoted = (state.boardSizeVotes || []).includes(onlinePlayerId);
-    if (hasVoted || state.pendingBoardSize === lastPromptedPendingBoardSize) {
+    const isProposalOwner = state.boardSizeProposalBy === onlinePlayerId;
+    if (hasVoted || isProposalOwner) {
+        return;
+    }
+
+    if (boardSizePromptResolver || state.pendingBoardSize === lastPromptedPendingBoardSize) {
         return;
     }
 
     lastPromptedPendingBoardSize = state.pendingBoardSize;
+    boardSizePromptResolver = true;
     showConfirmDialog(`对方提议将棋盘大小改为 ${state.pendingBoardSize}×${state.pendingBoardSize}，是否同意？`)
         .then((result) => {
             if (result === "confirm") {
@@ -1583,7 +1594,12 @@ function handleBoardSizeVotePrompt(state) {
                     .catch((error) => {
                         alert(error.message);
                     });
+            } else if (result === "dismiss") {
+                lastPromptedPendingBoardSize = null;
             }
+        })
+        .finally(() => {
+            boardSizePromptResolver = null;
         });
 }
 
