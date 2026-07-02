@@ -118,7 +118,7 @@ select {
 #themeToggle {
     font-size: 20px;
     padding: 6px 12px;
-    line-height: 1;
+    line-height: 1.35;
 }
 
 /* 主布局 */
@@ -253,7 +253,6 @@ select {
     background-color: var(--cell-bg);
     border: 1px solid var(--cell-border);
     cursor: pointer;
-    transition: background-color 0.2s, filter 0.2s;
 }
 
 .cell:hover {
