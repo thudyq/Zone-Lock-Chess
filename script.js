@@ -2037,7 +2037,7 @@ function updateOnlinePanel(state) {
             return;
         }
         const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
-        onlineStatus.textContent = "";
+        onlineStatus.textContent = "联机对战中";
         roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
         roomCodeDisplay.classList.remove("hidden");
         leaveRoomBtn.classList.remove("hidden");
