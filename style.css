@@ -124,19 +124,26 @@ select {
 /* 主布局 */
 #mainArea {
     display: flex;
-    justify-content: center;
+    justify-content: center;      /* 保持居中 */
     align-items: flex-start;
-    gap: 20px;
-    max-width: 1400px;
+    gap: 20px;                    /* 固定间距 */
+    max-width: none;              /* 移除宽度限制 */
     margin: 0 auto;
-    padding: 0 12px;
+    padding: 0;                   /* 移除内边距 */
+}
+
+#mainArea > * {
+    position: relative;
+    z-index: 1;
 }
 
 #infoPanel {
     width: 280px;
+    flex: 0 0 280px;
     flex-shrink: 0;
     text-align: left;
     font-size: 16px;
+    overflow: hidden;
 }
 
 #infoPanel h2 {
@@ -162,7 +169,7 @@ select {
 }
 
 #boardContainer {
-    flex: 1;
+    flex: 0 0 auto;              /* 不伸缩，由内容决定宽度 */
     display: flex;
     justify-content: center;
     min-width: 0;
@@ -170,9 +177,11 @@ select {
 
 #sidePanel {
     width: fit-content;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     gap: 15px;
+    overflow: hidden;
 }
 
 .panelCard {
@@ -522,31 +531,30 @@ select {
 
 /* 响应式布局 */
 @media (max-width: 900px) {
-    :root {
-        --cell-size: 50px;
-        --piece-size: 36px;
-    }
-
     #mainArea {
         flex-direction: column;
         align-items: center;
+        gap: 20px;
     }
-
+    #infoPanel,
+    #boardContainer,
     #sidePanel {
         width: 100%;
-        max-width: 520px;
+        max-width: 600px;
+        flex: 0 0 auto;
     }
-
+    #boardContainer {
+        display: flex;
+        justify-content: center;
+    }
+    #gameArea {
+        margin: 0 auto;
+    }
     #historyPanel,
     #recordPanel,
     #replayPanel,
     #onlinePanel {
         width: 100%;
-    }
-
-    #onlinePanel input[type="text"] {
-        width: 100%;
-        margin-bottom: 8px;
     }
 }
 
