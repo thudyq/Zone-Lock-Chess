@@ -232,14 +232,29 @@ select {
     color: var(--coord-color);
 }
 
+#columnLabels {
+    display: flex;
+    gap: 2px;                 /* 与棋盘 gap 一致 */
+    margin-left: var(--coord-label-width);
+}
 #columnLabels .coord-label {
-    width: calc(var(--cell-size) + 2px);
+    width: var(--cell-size);   /* 不再额外加间隙 */
     height: var(--coord-label-height);
 }
 
+#rowLabels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;                 /* 与棋盘 gap 一致 */
+}
 #rowLabels .coord-label {
     width: var(--coord-label-width);
-    height: calc(var(--cell-size) + 2px);
+    height: var(--cell-size);  /* 不再额外加间隙 */
+}
+
+.cell {
+    box-sizing: border-box;
+    /* 原有其他样式保持不变 */
 }
 
 /* 格子 */

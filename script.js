@@ -534,7 +534,7 @@ function renderBoard() {
     renderColumnLabels();
     renderRowLabels();
 
-    boardDiv.style.gridTemplateColumns = `repeat(${boardSize}, 60px)`;
+    boardDiv.style.gridTemplateColumns = `repeat(${boardSize}, var(--cell-size))`;
 
     for (let row = 0; row < boardSize; row++) {
         for (let col = 0; col < boardSize; col++) {
