@@ -47,6 +47,7 @@ const resultText = document.getElementById("resultText");
 
 const boardSizeSelect = document.getElementById("boardSize");
 const gameModeSelect = document.getElementById("gameMode");
+const playerColorSelect = document.getElementById("playerColorSelect");
 const aiDifficultySelect = document.getElementById("aiDifficulty");
 const aiDifficultyLabel = document.getElementById("aiDifficultyLabel");
 const restartBtn = document.getElementById("restartBtn");
@@ -88,6 +89,8 @@ let board = [];
 let currentPlayer = PLAYER_BLACK;
 let gameOver = false;
 let moveHistory = [];
+let userColor = PLAYER_BLACK;        // 玩家选择的颜色
+let aiColor = PLAYER_WHITE;          // AI 执色（由 userColor 决定）
 let aiThinking = false;
 let aiTimer = null;
 let previousBoardSize = boardSizeSelect.value;
@@ -225,6 +228,9 @@ restartBtn.addEventListener("click", () => {
 
     const message = "重新开始游戏将清空当前棋局，是否继续？";
     if (confirm(message)) {
+        if (gameModeSelect.value === "ai") {
+            playerColorSelect.value = String(PLAYER_BLACK);
+        }
         initializeGame();
     }
 });
@@ -256,6 +262,9 @@ boardSizeSelect.addEventListener("change", () => {
 
     const message = "修改棋盘大小将重新开始游戏，是否继续？";
     if (confirm(message)) {
+        if (gameModeSelect.value === "ai") {
+            playerColorSelect.value = String(PLAYER_BLACK);
+        }
         previousBoardSize = boardSizeSelect.value;
         initializeGame();
     } else {
@@ -269,6 +278,9 @@ gameModeSelect.addEventListener("change", () => {
     if (isUpdatingGameMode) return;
     const message = "切换游戏模式将重新开始游戏，是否继续？";
     if (confirm(message)) {
+        if (gameModeSelect.value === "ai") {
+            playerColorSelect.value = String(PLAYER_BLACK);
+        }
         previousGameMode = gameModeSelect.value;
         initializeGame();
     } else {
@@ -276,6 +288,22 @@ gameModeSelect.addEventListener("change", () => {
         gameModeSelect.value = previousGameMode;
         isUpdatingGameMode = false;
         updateModeSpecificUI();
+    }
+});
+
+playerColorSelect.addEventListener("change", () => {
+    if (gameModeSelect.value !== "ai") {
+        // 非AI模式下不允许切换，恢复原值
+        playerColorSelect.value = userColor;
+        return;
+    }
+    const newColor = Number(playerColorSelect.value);
+    if (newColor === userColor) return; // 未改变
+    const message = "切换执子颜色将重新开始游戏，是否继续？";
+    if (confirm(message)) {
+        initializeGame();
+    } else {
+        playerColorSelect.value = userColor; // 恢复
     }
 });
 
@@ -384,6 +412,18 @@ function initializeGame() {
 
     board = createEmptyBoard(boardSize);
 
+    // 根据模式设定玩家颜色
+    if (gameModeSelect.value === "ai") {
+        userColor = playerColorSelect ? Number(playerColorSelect.value) : PLAYER_BLACK;
+        aiColor = getOpponent(userColor);
+    } else {
+        userColor = PLAYER_BLACK;   // 非AI模式默认黑棋
+        aiColor = PLAYER_WHITE;
+    }
+    // 黑棋先走
+    currentPlayer = PLAYER_BLACK;
+    gameOver = false;
+
     updateModeSpecificUI();
     renderBoard();
     updateTurnText();
@@ -392,6 +432,14 @@ function initializeGame() {
     updateReplayControls();
     overlay.classList.add("hidden");
     saveGameState();
+
+    // 如果是 AI 模式且玩家是白棋（AI 为黑棋先手），则触发 AI
+    if (gameModeSelect.value === "ai" && userColor === PLAYER_WHITE) {
+        // 确保棋盘已渲染后触发
+        setTimeout(() => {
+            triggerAiIfNeeded();
+        }, 300);
+    }
 }
 
 function createEmptyBoard(size) {
@@ -488,6 +536,12 @@ function updateModeSpecificUI() {
     const isAiMode = mode === "ai";
     aiDifficultySelect.disabled = !isAiMode;
     aiDifficultyLabel.classList.toggle("disabled", !isAiMode);
+    playerColorSelect.disabled = !isAiMode;
+
+    const playerColorDiv = document.getElementById("playerColorSelection");
+    if (playerColorDiv) {
+        playerColorDiv.style.display = isAiMode ? "" : "none";
+    }
 
     if (isOnlineMode) {
         onlinePanel.classList.remove("hidden");
@@ -736,10 +790,9 @@ function checkGameEnd() {
 }
 
 function triggerAiIfNeeded() {
-    if (gameOver || gameModeSelect.value !== "ai" || currentPlayer !== PLAYER_WHITE) {
+    if (gameOver || gameModeSelect.value !== "ai" || currentPlayer !== aiColor) {
         return;
     }
-
     aiThinking = true;
     aiTimer = setTimeout(makeAiMove, AI_DELAY_MS);
 }
@@ -786,6 +839,9 @@ function undoLastMove() {
 
 // ==================== UI 更新 ====================
 function updateTurnText() {
+    if (gameOver) {
+        return;  // 游戏结束时不更新文本，保留结束信息
+    }
     if (isReplayMode) {
         turnText.textContent = `回放中：第 ${replayIndex} / ${moveHistory.length} 步`;
         moveCountText.textContent = "";
@@ -807,6 +863,17 @@ function updateTurnText() {
             moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
             updateOnlinePanel("playing");
         }
+        return;
+    }
+    else if (gameModeSelect.value === "ai") {
+        const playerSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
+        const isMyTurn = (currentPlayer === userColor);
+        const turnInfo = isMyTurn ? "你的回合" : "AI 思考中...";
+        const colorName = currentPlayer === PLAYER_BLACK ? "黑棋" : "白棋";
+        turnText.textContent = `当前玩家：${playerSymbol} ${colorName} | ${turnInfo}`;
+        const blackMoves = countLegalMoves(PLAYER_BLACK);
+        const whiteMoves = countLegalMoves(PLAYER_WHITE);
+        moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
         return;
     }
 
@@ -875,34 +942,32 @@ function makeAiMove() {
         aiThinking = false;
         return;
     }
-
-    const legalMoves = getLegalMoves(PLAYER_WHITE);
+    const legalMoves = getLegalMoves(aiColor);
     if (legalMoves.length === 0) {
         aiThinking = false;
         return;
     }
-
     const difficulty = aiDifficultySelect.value;
     let bestMove;
-
     switch (difficulty) {
         case DIFFICULTY_EASY:
             bestMove = getRandomMove(legalMoves);
             break;
         case DIFFICULTY_HARD:
-            bestMove = findBestMoveMinimax(SEARCH_DEPTH_HARD);
+            bestMove = findBestMoveMinimax(SEARCH_DEPTH_HARD, aiColor);
             break;
         case DIFFICULTY_EXPERT:
-            bestMove = findBestMoveMinimax(SEARCH_DEPTH_EXPERT);
+            bestMove = findBestMoveMinimax(SEARCH_DEPTH_EXPERT, aiColor);
             break;
         case DIFFICULTY_MEDIUM:
         default:
-            bestMove = findBestMove(legalMoves);
+            bestMove = findBestMove(legalMoves, aiColor);
             break;
     }
-
     aiThinking = false;
-    handleMove(bestMove.row, bestMove.col);
+    if (bestMove) {
+        handleMove(bestMove.row, bestMove.col);
+    }
 }
 
 function getRandomMove(moves) {
@@ -910,99 +975,84 @@ function getRandomMove(moves) {
     return moves[index];
 }
 
-function findBestMove(moves) {
+function findBestMove(moves, player) {
     let bestMove = null;
     let bestScore = -Infinity;
-
     for (const move of moves) {
-        const score = evaluateMove(move.row, move.col);
+        const score = evaluateMove(move.row, move.col, player);
         if (score > bestScore) {
             bestScore = score;
             bestMove = move;
         }
     }
-
     return bestMove;
 }
 
-function evaluateMove(row, col) {
-    board[row][col] = PLAYER_WHITE;
-    const aiMoves = getLegalMoves(PLAYER_WHITE).length;
-    const playerMoves = getLegalMoves(PLAYER_BLACK).length;
+function evaluateMove(row, col, player) {
+    const opponent = getOpponent(player);
+    board[row][col] = player;
+    const aiMoves = getLegalMoves(player).length;
+    const playerMoves = getLegalMoves(opponent).length;
     board[row][col] = 0;
 
     const mobilityScore = aiMoves - playerMoves;
     const centerScore = getCenterScore(row, col);
-    const groupScore = getGroupScore(row, col, PLAYER_WHITE);
+    const groupScore = getGroupScore(row, col, player);
 
     return WEIGHT_MOBILITY * mobilityScore
         + WEIGHT_CENTER * centerScore
         + WEIGHT_GROUP * groupScore;
 }
 
-function findBestMoveMinimax(depth) {
-    const legalMoves = getLegalMoves(PLAYER_WHITE);
+function findBestMoveMinimax(depth, player) {
+    const legalMoves = getLegalMoves(player);
+    if (legalMoves.length === 0) return null;
     let bestMove = legalMoves[0];
     let bestScore = -Infinity;
+    const opponent = getOpponent(player);
 
     for (const move of legalMoves) {
-        board[move.row][move.col] = PLAYER_WHITE;
-        const score = minimax(depth - 1, -Infinity, Infinity, false);
+        board[move.row][move.col] = player;
+        const score = minimax(depth - 1, -Infinity, Infinity, false, player, opponent);
         board[move.row][move.col] = 0;
-
         if (score > bestScore) {
             bestScore = score;
             bestMove = move;
         }
     }
-
     return bestMove;
 }
 
-function minimax(depth, alpha, beta, isMaximizingPlayer) {
-    const player = isMaximizingPlayer ? PLAYER_WHITE : PLAYER_BLACK;
-
+function minimax(depth, alpha, beta, isMaximizingPlayer, player, opponent) {
     if (depth === 0 || !hasLegalMove(player)) {
         return evaluateBoard();
     }
 
-    const legalMoves = getLegalMoves(player);
-
     if (isMaximizingPlayer) {
         let maxScore = -Infinity;
-
-        for (const move of legalMoves) {
-            board[move.row][move.col] = PLAYER_WHITE;
-            const score = minimax(depth - 1, alpha, beta, false);
+        const moves = getLegalMoves(player);
+        for (const move of moves) {
+            board[move.row][move.col] = player;
+            const score = minimax(depth - 1, alpha, beta, false, player, opponent);
             board[move.row][move.col] = 0;
-
             maxScore = Math.max(maxScore, score);
             alpha = Math.max(alpha, score);
-
-            if (beta <= alpha) {
-                break;
-            }
+            if (beta <= alpha) break;
         }
-
         return maxScore;
-    }
-
-    let minScore = Infinity;
-
-    for (const move of legalMoves) {
-        board[move.row][move.col] = PLAYER_BLACK;
-        const score = minimax(depth - 1, alpha, beta, true);
-        board[move.row][move.col] = 0;
-
-        minScore = Math.min(minScore, score);
-        beta = Math.min(beta, score);
-
-        if (beta <= alpha) {
-            break;
+    } else {
+        let minScore = Infinity;
+        const moves = getLegalMoves(opponent);
+        for (const move of moves) {
+            board[move.row][move.col] = opponent;
+            const score = minimax(depth - 1, alpha, beta, true, player, opponent);
+            board[move.row][move.col] = 0;
+            minScore = Math.min(minScore, score);
+            beta = Math.min(beta, score);
+            if (beta <= alpha) break;
         }
+        return minScore;
     }
-
-    return minScore;
 }
 
 function evaluateBoard() {

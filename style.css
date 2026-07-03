@@ -410,6 +410,13 @@ select {
     margin-bottom: 10px;
 }
 
+#playerColorSelection {
+    margin: 8px 0;
+}
+#playerColorSelection select {
+    margin-left: 6px;
+}
+
 #onlinePanel input[type="text"] {
     width: calc(100% - 90px);
     padding: 8px;
@@ -449,6 +456,7 @@ select {
     justify-content: center;
     align-items: center;
     background: var(--overlay-bg);
+    z-index: 10000;
 }
 
 #resultBox {
