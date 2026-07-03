@@ -194,7 +194,7 @@ select {
 #gameArea {
     width: fit-content;
     padding: 15px;
-    margin: 20px auto;
+    margin: 0 auto;
     background: var(--board-bg);
     border-radius: 12px;
     box-shadow: var(--board-shadow);
