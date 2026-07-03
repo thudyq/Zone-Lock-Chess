@@ -31,13 +31,6 @@
             <option value="online">在线对战</option>
         </select>
 
-        <label id="aiDifficultyLabel" class="ai-difficulty-label" for="aiDifficulty">AI 难度：</label>
-        <select id="aiDifficulty" class="ai-difficulty-select">
-            <option value="easy">简单</option>
-            <option value="medium" selected>中等</option>
-            <option value="hard">困难</option>
-            <option value="expert">专家</option>
-        </select>
     </div>
 
     <div id="mainArea">
@@ -71,14 +64,28 @@
         <div id="sidePanel">
             <div class="panelCard">
                 <p id="turnText">当前玩家：黑棋</p>
-                <p id="moveCountText"></p>
+
                 <div id="playerColorSelection">
-                    <label for="playerColorSelect">玩家执子：</label>
-                    <select id="playerColorSelect">
-                        <option value="1">黑棋 (先手)</option>
-                        <option value="2">白棋 (后手)</option>
-                    </select>
+                    <div>
+                        <label for="playerColorSelect">玩家执子：</label>
+                        <select id="playerColorSelect">
+                            <option value="1">黑棋 (先手)</option>
+                            <option value="2">白棋 (后手)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label id="aiDifficultyLabel" class="ai-difficulty-label" for="aiDifficulty">AI 难度：</label>
+                        <select id="aiDifficulty" class="ai-difficulty-select">
+                            <option value="easy">简单</option>
+                            <option value="medium" selected>中等</option>
+                            <option value="hard">困难</option>
+                            <option value="expert">专家</option>
+                        </select>
+                    </div>
                 </div>
+
+                <p id="moveCountText"></p>
                 <p id="evaluationText"></p>
 
                 <div id="historyPanel">

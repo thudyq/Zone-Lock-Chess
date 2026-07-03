@@ -411,10 +411,15 @@ select {
 }
 
 #playerColorSelection {
-    margin: 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;  /* 调整此值控制行间距，如 4px、12px 等 */
+    align-items: center;
 }
-#playerColorSelection select {
-    margin-left: 6px;
+#playerColorSelection > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;  /* 标签与下拉框的水平间距 */
 }
 
 #onlinePanel input[type="text"] {
