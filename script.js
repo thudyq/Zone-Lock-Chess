@@ -596,6 +596,7 @@ function renderBoard() {
             boardDiv.appendChild(cell);
         }
     }
+    lastPlacedPosition = null;
 }
 
 function renderColumnLabels() {
@@ -1240,6 +1241,7 @@ function applyReplayIndex(index) {
 
     currentPlayer = replayIndex % 2 === 0 ? PLAYER_BLACK : PLAYER_WHITE;
     gameOver = isReplayMode;
+    lastPlacedPosition = null;
 
     renderBoard();
     updateTurnText();
@@ -1695,6 +1697,12 @@ function sendRejectUndoRequest() {
 function applyServerState(state) {
     if (!state) return;
 
+    // ----- 保存旧状态，用于变化检测 -----
+    const oldBoard = board.map(row => [...row]);      // 深拷贝当前棋盘
+    const oldMoveHistory = moveHistory.slice();       // 保存旧历史
+    const oldBoardSize = boardSize;
+
+    // ----- 更新全局变量（新状态）-----
     if (state.code) {
         onlineRoomCode = state.code;
     }
@@ -1709,6 +1717,48 @@ function applyServerState(state) {
     moveHistory = (state.moveHistory || []).map((move) => ({ ...move }));
     isOnlineMyTurn = currentPlayer === onlineColor;
 
+    // ----- 检测是否有变化 -----
+    let boardChanged = false;
+    if (boardSize !== oldBoardSize) {
+        boardChanged = true;
+    } else {
+        for (let r = 0; r < boardSize; r++) {
+            for (let c = 0; c < boardSize; c++) {
+                if (oldBoard[r][c] !== board[r][c]) {
+                    boardChanged = true;
+                    break;
+                }
+            }
+            if (boardChanged) break;
+        }
+    }
+
+    // 历史记录变化（步数或最后一步内容不同）
+    const movesChanged = (moveHistory.length !== oldMoveHistory.length) ||
+        (moveHistory.length > 0 && oldMoveHistory.length > 0 &&
+         (moveHistory[moveHistory.length - 1].row !== oldMoveHistory[oldMoveHistory.length - 1].row ||
+          moveHistory[moveHistory.length - 1].col !== oldMoveHistory[oldMoveHistory.length - 1].col ||
+          moveHistory[moveHistory.length - 1].player !== oldMoveHistory[oldMoveHistory.length - 1].player));
+
+    // ----- 处理落子动画标记（仅当历史新增一步）-----
+    if (moveHistory.length > oldMoveHistory.length && !isReplayMode) {
+        const last = moveHistory[moveHistory.length - 1];
+        lastPlacedPosition = { row: last.row, col: last.col };
+    } else {
+        lastPlacedPosition = null;
+    }
+
+    // ----- 仅当棋盘或历史变化时才重新绘制棋盘 -----
+    if (boardChanged || movesChanged) {
+        renderBoard();
+    }
+
+    // ----- 以下 UI 更新始终执行（不涉及 DOM 重建）-----
+    updateTurnText();
+    updateEvaluation();
+    updateHistoryList();
+
+    // ----- 在线投票、提示等逻辑保持不变 -----
     const pendingSize = state.pendingBoardSize;
     const hasBoardSizeVoted = pendingSize !== null && pendingSize !== undefined &&
         (state.boardSizeVotes || []).includes(onlinePlayerId);
@@ -1727,11 +1777,6 @@ function applyServerState(state) {
 
     const isRestartProposalOwner = state.pendingRestart && state.restartProposalBy === onlinePlayerId;
     const isUndoProposalOwner = state.pendingUndo && state.undoProposalBy === onlinePlayerId;
-
-    renderBoard();
-    updateTurnText();
-    updateEvaluation();
-    updateHistoryList();
 
     handleBoardSizeVotePrompt(state);
     handleRestartVotePrompt(state);
@@ -1768,6 +1813,43 @@ function applyServerState(state) {
     }
 
     saveGameState();
+}
+
+function updateOnlineStatusText(state) {
+    const pendingSize = state.pendingBoardSize;
+    const isProposalOwner = pendingSize !== null && pendingSize !== undefined &&
+        state.boardSizeProposalBy === onlinePlayerId;
+    const hasVoted = pendingSize !== null && pendingSize !== undefined &&
+        (state.boardSizeVotes || []).includes(onlinePlayerId);
+
+    if (pendingSize !== null && pendingSize !== undefined) {
+        if (isProposalOwner) {
+            onlineStatus.textContent = `已提议改为 ${pendingSize}×${pendingSize}，等待对方确认...`;
+        } else if (!hasVoted) {
+            onlineStatus.textContent = `对方提议改为 ${pendingSize}×${pendingSize}，等待你确认...`;
+        } else {
+            onlineStatus.textContent = `等待对方确认棋盘大小变更...`;
+        }
+    } else if (state.pendingRestart) {
+        if (state.restartProposalBy === onlinePlayerId) {
+            onlineStatus.textContent = "已提议重新开始，等待对方确认...";
+        } else {
+            onlineStatus.textContent = "对方提议重新开始，等待你确认...";
+        }
+    } else if (state.pendingUndo) {
+        if (state.undoProposalBy === onlinePlayerId) {
+            onlineStatus.textContent = "已提议悔棋，等待对方确认...";
+        } else {
+            onlineStatus.textContent = "对方提议悔棋，等待你确认...";
+        }
+    } else {
+        // 恢复常规状态
+        if (state.status === "waiting") {
+            onlineStatus.textContent = "等待对手加入...";
+        } else {
+            onlineStatus.textContent = "";
+        }
+    }
 }
 
 function handleRestartVotePrompt(state) {
