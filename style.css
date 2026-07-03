@@ -124,12 +124,12 @@ select {
 /* 主布局 */
 #mainArea {
     display: flex;
-    justify-content: center;      /* 保持居中 */
+    justify-content: center;
     align-items: flex-start;
-    gap: 20px;                    /* 固定间距 */
-    max-width: none;              /* 移除宽度限制 */
+    gap: 20px;
+    max-width: none;
     margin: 0 auto;
-    padding: 0;                   /* 移除内边距 */
+    padding: 0;
 }
 
 #mainArea > * {
@@ -169,7 +169,7 @@ select {
 }
 
 #boardContainer {
-    flex: 0 0 auto;              /* 不伸缩，由内容决定宽度 */
+    flex: 0 0 auto;
     display: flex;
     justify-content: center;
     min-width: 0;
@@ -243,32 +243,28 @@ select {
 
 #columnLabels {
     display: flex;
-    gap: 2px;                 /* 与棋盘 gap 一致 */
+    gap: 2px;
     margin-left: var(--coord-label-width);
 }
 #columnLabels .coord-label {
-    width: var(--cell-size);   /* 不再额外加间隙 */
+    width: var(--cell-size);
     height: var(--coord-label-height);
 }
 
 #rowLabels {
     display: flex;
     flex-direction: column;
-    gap: 2px;                 /* 与棋盘 gap 一致 */
+    gap: 2px;
 }
 #rowLabels .coord-label {
     width: var(--coord-label-width);
-    height: var(--cell-size);  /* 不再额外加间隙 */
-}
-
-.cell {
-    box-sizing: border-box;
-    /* 原有其他样式保持不变 */
+    height: var(--cell-size);
 }
 
 /* 格子 */
 .cell {
     position: relative;
+    box-sizing: border-box;
     width: var(--cell-size);
     height: var(--cell-size);
     display: flex;
