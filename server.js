@@ -48,7 +48,8 @@ function createRoom(boardSize) {
         restartProposalBy: null,
         pendingUndo: false,
         undoVotes: new Set(),
-        undoProposalBy: null
+        undoProposalBy: null,
+        phase: 'waiting'
     };
 
     rooms.set(code, room);
@@ -71,6 +72,13 @@ function resetRoom(room) {
     room.pendingUndo = false;
     room.undoVotes.clear();
     room.undoProposalBy = null;
+    
+    // ----- 新增：重置颜色选择阶段 -----
+    room.phase = 'color_selection';
+    room.players.forEach(p => {
+        p.color = null;
+        p.selectedColor = null;
+    });
 }
 
 function undoLastMove(room) {
@@ -95,9 +103,10 @@ function getRoomState(room, playerId) {
         gameOver: room.gameOver,
         winner: room.winner,
         moveHistory: room.moveHistory,
-        players: room.players.map((entry) => ({ id: entry.id, color: entry.color })),
+        players: room.players.map((entry) => ({ id: entry.id, color: entry.color, selectedColor: entry.selectedColor })),
         myColor: player ? player.color : null,
-        status,
+        status: room.phase,
+        phase: room.phase,
         rematchVotes: Array.from(room.rematchVotes),
         pendingBoardSize: room.pendingBoardSize,
         boardSizeVotes: Array.from(room.boardSizeVotes),
@@ -246,12 +255,80 @@ function startServer(port) {
 
             const playerId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
             const color = room.players.length === 0 ? 1 : 2;
-            const player = { id: playerId, color };
+            const player = { id: playerId, color: null, selectedColor: null };
 
             room.players.push(player);
-
+            if (room.players.length === 2) {
+                room.phase = 'color_selection';
+            }
             res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ playerId, color, boardSize: room.boardSize }));
+            res.end(JSON.stringify({
+                playerId,
+                color: null,
+                boardSize: room.boardSize,
+                phase: room.phase
+            }));
+        });
+        return;
+    }
+
+    if (pathname === "/choose-color" && method === "POST") {
+        parseBody(req, (body) => {
+            const { code, playerId, color } = body;
+            const room = rooms.get(code);
+            if (!room) {
+                res.writeHead(404, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "房间不存在" }));
+                return;
+            }
+            if (room.phase !== 'color_selection') {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "当前不在颜色选择阶段" }));
+                return;
+            }
+            const player = room.players.find(p => p.id === playerId);
+            if (!player) {
+                res.writeHead(403, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "未授权" }));
+                return;
+            }
+            if (color !== 1 && color !== 2) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "非法颜色" }));
+                return;
+            }
+            const other = room.players.find(p => p.id !== playerId);
+            if (other && other.selectedColor === color) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "该颜色已被对方选择" }));
+                return;
+            }
+            player.selectedColor = color;
+
+            // 检查双方是否都选好
+            const allSelected = room.players.every(p => p.selectedColor !== null);
+            if (allSelected) {
+                room.players.forEach(p => p.color = p.selectedColor);
+                // 重置棋盘（保留玩家列表和颜色）
+                room.board = createBoard(room.boardSize);
+                room.currentPlayer = 1;
+                room.gameOver = false;
+                room.winner = null;
+                room.moveHistory = [];
+                room.rematchVotes.clear();
+                room.pendingBoardSize = null;
+                room.boardSizeVotes.clear();
+                room.boardSizeProposalBy = null;
+                room.pendingRestart = false;
+                room.restartVotes.clear();
+                room.restartProposalBy = null;
+                room.pendingUndo = false;
+                room.undoVotes.clear();
+                room.undoProposalBy = null;
+                room.phase = 'playing';
+            }
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true, state: getRoomState(room, playerId) }));
         });
         return;
     }
@@ -305,7 +382,7 @@ function startServer(port) {
 
             if (room.currentPlayer !== player.color) {
                 res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "还没轮到你" }));
+                res.end(JSON.stringify({ error: "请等待对手落子！" }));
                 return;
             }
 
@@ -354,6 +431,7 @@ function startServer(port) {
 
             if (room.rematchVotes.size >= 2) {
                 resetRoom(room);
+                room.rematchVotes.clear();
             }
 
             res.writeHead(200, { "Content-Type": "application/json" });

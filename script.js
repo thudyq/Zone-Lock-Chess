@@ -76,6 +76,9 @@ const serverUrlInput = document.getElementById("serverUrlInput");
 const applyServerUrlBtn = document.getElementById("applyServerUrlBtn");
 const onlineStatus = document.getElementById("onlineStatus");
 const roomCodeDisplay = document.getElementById("roomCodeDisplay");
+const chooseBlackBtn = document.getElementById("chooseBlackBtn");
+const chooseWhiteBtn = document.getElementById("chooseWhiteBtn");
+const colorStatus = document.getElementById("colorStatus");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
 const confirmModal = document.getElementById("confirmModal");
 const confirmTitle = document.getElementById("confirmTitle");
@@ -1497,7 +1500,7 @@ function joinServerRoom(code, isHost) {
         .then((data) => {
             onlineRoomCode = code;
             onlinePlayerId = data.playerId;
-            onlineColor = data.color;
+            onlineColor = data.color; // 此时为 null
             isOnlineMode = true;
             saveOnlineIdentity(code, data.playerId, data.color);
 
@@ -1505,8 +1508,22 @@ function joinServerRoom(code, isHost) {
             boardSizeSelect.value = String(boardSize);
 
             startOnlinePolling();
-            updateOnlinePanel(isHost ? "waiting" : "playing");
-            onlineStatus.textContent = isHost ? "房间已创建，分享房间号给对手" : "已加入房间，等待同步...";
+            // 立即获取一次完整状态
+            pollServerState();
+
+            // 根据阶段显示初始提示（实际 UI 由 applyServerState 更新）
+            const phase = data.phase || 'waiting';
+            if (phase === 'waiting') {
+                onlineStatus.textContent = isHost ? "房间已创建，分享房间号给对手" : "已加入房间，等待对手...";
+                updateOnlinePanel('waiting');
+            } else if (phase === 'color_selection') {
+                onlineStatus.textContent = "等待双方选择颜色...";
+                updateOnlinePanel('color_selection', { players: [] });
+            } else {
+                onlineStatus.textContent = "对局进行中";
+                updateOnlinePanel('playing');
+            }
+            // 不再手动调用 updateOnlinePanel
         })
         .catch((error) => {
             onlineStatus.textContent = error.message;
@@ -1794,7 +1811,8 @@ function applyServerState(state) {
         }
     } else {
         overlay.classList.add("hidden");
-        updateOnlinePanel(state.status === "waiting" ? "waiting" : "playing");
+        const phase = state.phase || 'playing';
+        updateOnlinePanel(phase, state); // 传递 state 以便更新颜色选择 UI
     }
 
     if (pendingSize !== null && pendingSize !== undefined && isProposalOwner) {
@@ -2018,7 +2036,7 @@ function leaveRoom() {
     updateOnlinePanel("idle");
 }
 
-function updateOnlinePanel(state) {
+function updateOnlinePanel(state, stateData) {
     if (state === "idle") {
         onlineStatus.textContent = "";
         roomCodeDisplay.classList.add("hidden");
@@ -2026,7 +2044,13 @@ function updateOnlinePanel(state) {
         createRoomBtn.disabled = false;
         joinRoomBtn.disabled = false;
         roomCodeInput.disabled = false;
-    } else if (state === "waiting") {
+        // 隐藏颜色选择
+        const colorDiv = document.getElementById("colorSelection");
+        if (colorDiv) colorDiv.classList.add("hidden");
+        return;
+    }
+    
+    if (state === "waiting") {
         onlineStatus.textContent = "等待对手加入...";
         roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
         roomCodeDisplay.classList.remove("hidden");
@@ -2034,7 +2058,72 @@ function updateOnlinePanel(state) {
         createRoomBtn.disabled = true;
         joinRoomBtn.disabled = true;
         roomCodeInput.disabled = true;
-    } else if (state === "playing") {
+        // 隐藏颜色选择
+        const colorDiv = document.getElementById("colorSelection");
+        if (colorDiv) colorDiv.classList.add("hidden");
+        return;
+    }
+    
+    // 颜色选择阶段
+    if (state === "color_selection") {
+        onlineStatus.textContent = "请选择你的棋子颜色";
+        roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
+        roomCodeDisplay.classList.remove("hidden");
+        leaveRoomBtn.classList.remove("hidden");
+        createRoomBtn.disabled = true;
+        joinRoomBtn.disabled = true;
+        roomCodeInput.disabled = true;
+
+        // 显示颜色选择区域
+        const colorDiv = document.getElementById("colorSelection");
+        if (colorDiv) colorDiv.classList.remove("hidden");
+   
+        chooseBlackBtn.disabled = false;
+        chooseWhiteBtn.disabled = false;
+        chooseBlackBtn.textContent = "⚫ 黑棋";
+        chooseWhiteBtn.textContent = "⚪ 白棋";
+        colorStatus.textContent = "对方选择：未选择";
+
+        // 更新按钮状态和提示
+        if (stateData && stateData.players) {
+            const me = stateData.players.find(p => p.id === onlinePlayerId);
+            const other = stateData.players.find(p => p.id !== onlinePlayerId);
+            if (me) {
+                // 我的选择
+                if (me.selectedColor === 1) {
+                    chooseBlackBtn.disabled = true;
+                    chooseBlackBtn.textContent = "⚫ 黑棋 (已选)";
+                    chooseWhiteBtn.disabled = false;
+                    chooseWhiteBtn.textContent = "⚪ 白棋";
+                } else if (me.selectedColor === 2) {
+                    chooseWhiteBtn.disabled = true;
+                    chooseWhiteBtn.textContent = "⚪ 白棋 (已选)";
+                    chooseBlackBtn.disabled = false;
+                    chooseBlackBtn.textContent = "⚫ 黑棋";
+                } else {
+                    chooseBlackBtn.disabled = false;
+                    chooseWhiteBtn.disabled = false;
+                    chooseBlackBtn.textContent = "⚫ 黑棋";
+                    chooseWhiteBtn.textContent = "⚪ 白棋";
+                }
+                // 对方选择状态
+                if (other) {
+                    const otherColor = other.selectedColor;
+                    let otherText = "未选择";
+                    if (otherColor === 1) otherText = "黑棋";
+                    else if (otherColor === 2) otherText = "白棋";
+                    colorStatus.textContent = `对方选择：${otherText}`;
+                }
+            }
+        }
+        return;
+    }
+
+    if (state === "playing") {
+        // 隐藏颜色选择
+        const colorDiv = document.getElementById("colorSelection");
+        if (colorDiv) colorDiv.classList.add("hidden");
+
         if (onlineColor === null || !onlineRoomCode) {
             updateOnlinePanel("idle");
             return;
@@ -2048,6 +2137,33 @@ function updateOnlinePanel(state) {
         joinRoomBtn.disabled = true;
         roomCodeInput.disabled = true;
     }
+}
+
+// 选择颜色
+function chooseColor(color) {
+    if (!onlineRoomCode || !onlinePlayerId) {
+        alert("请先加入房间");
+        return;
+    }
+    apiRequest("/choose-color", "POST", {
+        code: onlineRoomCode,
+        playerId: onlinePlayerId,
+        color: color
+    })
+        .then(data => {
+            applyServerState(data.state);
+        })
+        .catch(error => {
+            alert(error.message);
+        });
+}
+
+
+if (chooseBlackBtn) {
+    chooseBlackBtn.addEventListener("click", () => chooseColor(1));
+}
+if (chooseWhiteBtn) {
+    chooseWhiteBtn.addEventListener("click", () => chooseColor(2));
 }
 
 // ==================== 启动游戏 ====================
