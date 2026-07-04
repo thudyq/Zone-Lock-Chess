@@ -2271,6 +2271,7 @@ function updateOnlinePanel(state, stateData) {
         createRoomBtn.disabled = false;
         joinRoomBtn.disabled = false;
         roomCodeInput.disabled = false;
+        roomCodeInput.value = "";
         // 隐藏颜色选择
         const colorDiv = document.getElementById("colorSelection");
         if (colorDiv) colorDiv.classList.add("hidden");
