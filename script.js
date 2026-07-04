@@ -296,22 +296,6 @@ gameModeSelect.addEventListener("change", () => {
     }
 });
 
-playerColorSelect.addEventListener("change", () => {
-    if (gameModeSelect.value !== "ai") {
-        // 非AI模式下不允许切换，恢复原值
-        playerColorSelect.value = userColor;
-        return;
-    }
-    const newColor = Number(playerColorSelect.value);
-    if (newColor === userColor) return; // 未改变
-    const message = "切换执子颜色将重新开始游戏，是否继续？";
-    if (confirm(message)) {
-        initializeGame();
-    } else {
-        playerColorSelect.value = userColor; // 恢复
-    }
-});
-
 aiDifficultySelect.addEventListener("change", () => {
     if (isUpdatingAiDifficulty) return;
     const message = "切换 AI 难度将改变后续 AI 的落子策略，是否继续？";
@@ -382,8 +366,61 @@ replaySpeedSelect.addEventListener("change", handleReplaySpeedChange);
 resumeGameBtn.addEventListener("click", resumeGameFromReplay);
 
 createRoomBtn.addEventListener("click", createRoom);
+roomCodeDisplay.addEventListener("click", async () => {
+    const rawText = roomCodeDisplay.textContent || "";
+    // 提取房间号（格式为 "房间号：XXXXXX"）
+    const match = rawText.match(/[A-Z0-9]{6}/);
+    if (match) {
+        const code = match[0];
+        try {
+            await navigator.clipboard.writeText(code);
+            // 可选：短暂提示复制成功
+            const originalText = roomCodeDisplay.textContent;
+            roomCodeDisplay.textContent = "✅ 已复制！";
+            setTimeout(() => {
+                roomCodeDisplay.textContent = originalText;
+            }, 1500);
+        } catch (err) {
+            // 降级方案：使用 input 临时复制
+            const input = document.createElement("input");
+            input.value = code;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+            alert("房间号已复制到剪贴板");
+        }
+    }
+});
 joinRoomBtn.addEventListener("click", joinRoom);
-leaveRoomBtn.addEventListener("click", leaveRoom);
+playerColorSelect.addEventListener("change", () => {
+    if (gameModeSelect.value !== "ai") {
+        // 非AI模式下不允许切换，恢复原值
+        playerColorSelect.value = userColor;
+        return;
+    }
+    const newColor = Number(playerColorSelect.value);
+    if (newColor === userColor) return; // 未改变
+    const message = "切换执子颜色将重新开始游戏，是否继续？";
+    if (confirm(message)) {
+        initializeGame();
+    } else {
+        playerColorSelect.value = userColor; // 恢复
+    }
+});
+leaveRoomBtn.addEventListener("click", async () => {
+    // 仅在在线模式下显示确认框
+    if (isOnlineMode && onlineRoomCode) {
+        const result = await showConfirmDialog("确定要离开当前房间吗？");
+        if (result === "confirm") {
+            leaveRoom();
+        }
+        // 取消或关闭对话框则不做任何事
+    } else {
+        // 非在线模式下（防御性编程）直接执行离开
+        leaveRoom();
+    }
+});
 applyServerUrlBtn.addEventListener("click", applyServerUrl);
 roomCodeInput.addEventListener("input", () => {
     roomCodeInput.value = roomCodeInput.value.toUpperCase();
@@ -2187,7 +2224,7 @@ function updateOnlinePanel(state, stateData) {
     
     if (state === "waiting") {
         onlineStatus.textContent = "等待对手加入...";
-        roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
+        roomCodeDisplay.textContent = `房间号(点击复制)：${onlineRoomCode}`;
         roomCodeDisplay.classList.remove("hidden");
         leaveRoomBtn.classList.remove("hidden");
         createRoomBtn.disabled = true;
