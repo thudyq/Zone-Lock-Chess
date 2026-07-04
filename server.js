@@ -648,7 +648,7 @@ function startServer(port) {
                     res.end(JSON.stringify({ error: "只有最后落子的一方可以发起悔棋" }));
                     return;
                 }
-                
+
                 if (!room.pendingUndo) {
                     room.pendingUndo = true;
                     room.undoProposalBy = playerId;
@@ -680,13 +680,10 @@ function startServer(port) {
                 room.players = room.players.filter((entry) => entry.id !== playerId);
 
                 if (room.players.length === 0) {
-                    // 没有玩家了，直接删除房间
                     rooms.delete(room.code);
                 } else if (isHost) {
-                    // 房主离开，删除房间
                     rooms.delete(room.code);
                 } else {
-                    // 房客离开，保留房间但重置状态
                     room.phase = 'waiting';
                     room.players.forEach(p => { p.color = null; p.selectedColor = null; });
                     room.board = createBoard(room.boardSize);
@@ -704,7 +701,6 @@ function startServer(port) {
                     room.pendingUndo = false;
                     room.undoVotes.clear();
                     room.undoProposalBy = null;
-                    // 更新房主为剩余玩家
                     room.hostId = room.players[0].id;
                 }
             }

@@ -92,15 +92,14 @@ let board = [];
 let currentPlayer = PLAYER_BLACK;
 let gameOver = false;
 let moveHistory = [];
-let userColor = PLAYER_BLACK;        // 玩家选择的颜色
-let aiColor = PLAYER_WHITE;          // AI 执色（由 userColor 决定）
+let userColor = PLAYER_BLACK;
+let aiColor = PLAYER_WHITE;
 let aiThinking = false;
 let aiTimer = null;
 let previousBoardSize = boardSizeSelect.value;
 let previousGameMode = gameModeSelect.value;
 let previousAiDifficulty = aiDifficultySelect.value;
 
-// 防止select改变事件递归触发的标志
 let isUpdatingBoardSize = false;
 let isUpdatingGameMode = false;
 let isUpdatingAiDifficulty = false;
@@ -375,13 +374,11 @@ resumeGameBtn.addEventListener("click", resumeGameFromReplay);
 createRoomBtn.addEventListener("click", createRoom);
 roomCodeDisplay.addEventListener("click", async () => {
     const rawText = roomCodeDisplay.textContent || "";
-    // 提取房间号（格式为 "房间号：XXXXXX"）
     const match = rawText.match(/[A-Z0-9]{6}/);
     if (match) {
         const code = match[0];
         try {
             await navigator.clipboard.writeText(code);
-            // 可选：短暂提示复制成功
             const originalText = roomCodeDisplay.textContent;
             roomCodeDisplay.textContent = "✅ 已复制！";
             setTimeout(() => {
@@ -402,29 +399,25 @@ roomCodeDisplay.addEventListener("click", async () => {
 joinRoomBtn.addEventListener("click", joinRoom);
 playerColorSelect.addEventListener("change", () => {
     if (gameModeSelect.value !== "ai") {
-        // 非AI模式下不允许切换，恢复原值
         playerColorSelect.value = userColor;
         return;
     }
     const newColor = Number(playerColorSelect.value);
-    if (newColor === userColor) return; // 未改变
+    if (newColor === userColor) return;
     const message = "切换执子颜色将重新开始游戏，是否继续？";
     if (confirm(message)) {
         initializeGame();
     } else {
-        playerColorSelect.value = userColor; // 恢复
+        playerColorSelect.value = userColor;
     }
 });
 leaveRoomBtn.addEventListener("click", async () => {
-    // 仅在在线模式下显示确认框
     if (isOnlineMode && onlineRoomCode) {
         const result = await showConfirmDialog("确定要离开当前房间吗？");
         if (result === "confirm") {
             leaveRoom();
         }
-        // 取消或关闭对话框则不做任何事
     } else {
-        // 非在线模式下（防御性编程）直接执行离开
         leaveRoom();
     }
 });
@@ -465,15 +458,13 @@ function initializeGame() {
 
     board = createEmptyBoard(boardSize);
 
-    // 根据模式设定玩家颜色
     if (gameModeSelect.value === "ai") {
         userColor = playerColorSelect ? Number(playerColorSelect.value) : PLAYER_BLACK;
         aiColor = getOpponent(userColor);
     } else {
-        userColor = PLAYER_BLACK;   // 非AI模式默认黑棋
+        userColor = PLAYER_BLACK;
         aiColor = PLAYER_WHITE;
     }
-    // 黑棋先走
     currentPlayer = PLAYER_BLACK;
     gameOver = false;
 
@@ -486,9 +477,7 @@ function initializeGame() {
     overlay.classList.add("hidden");
     saveGameState();
 
-    // 如果是 AI 模式且玩家是白棋（AI 为黑棋先手），则触发 AI
     if (gameModeSelect.value === "ai" && userColor === PLAYER_WHITE) {
-        // 确保棋盘已渲染后触发
         setTimeout(() => {
             triggerAiIfNeeded();
         }, 300);
@@ -496,27 +485,20 @@ function initializeGame() {
 }
 
 function resetToIdleState() {
-    // 清空棋盘（保持当前棋盘大小不变，但重置为空棋盘）
     board = createEmptyBoard(boardSize);
     moveHistory = [];
     currentPlayer = PLAYER_BLACK;
     gameOver = false;
     lastPlacedPosition = null;
-    // 重置 AI 相关（如果有）
     stopAiTimer();
-    // 退出回放模式（若有）
     if (isReplayMode) {
         exitReplayMode();
     }
-    // 隐藏结束弹窗
     overlay.classList.add("hidden");
-    // 重新渲染空白棋盘
     renderBoard();
-    // 更新所有文本信息
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
-    // 清空本地存储的游戏状态（可选）
     clearSavedGameState();
 }
 
@@ -953,7 +935,7 @@ function updateTurnText() {
                 moveCountText.textContent = "";
                 return;
             }
-            // 正常对局状态
+            
             const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
             const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
             const blackMoves = countLegalMoves(PLAYER_BLACK);
@@ -1607,10 +1589,8 @@ function joinServerRoom(code, isHost) {
             boardSizeSelect.value = String(boardSize);
 
             startOnlinePolling();
-            // 立即获取一次完整状态
             pollServerState();
 
-            // 根据阶段显示初始提示（实际 UI 由 applyServerState 更新）
             const phase = data.phase || 'waiting';
             if (phase === 'waiting') {
                 onlineStatus.textContent = isHost ? "房间已创建，分享房间号给对手" : "已加入房间，等待对手...";
@@ -1622,7 +1602,6 @@ function joinServerRoom(code, isHost) {
                 onlineStatus.textContent = "对局进行中";
                 updateOnlinePanel('playing');
             }
-            // 不再手动调用 updateOnlinePanel
         })
         .catch((error) => {
             onlineStatus.textContent = error.message;
@@ -1817,8 +1796,8 @@ function applyServerState(state) {
     if (!state) return;
 
     // ----- 保存旧状态，用于变化检测 -----
-    const oldBoard = board.map(row => [...row]);      // 深拷贝当前棋盘
-    const oldMoveHistory = moveHistory.slice();       // 保存旧历史
+    const oldBoard = board.map(row => [...row]); 
+    const oldMoveHistory = moveHistory.slice();
     const oldBoardSize = boardSize;
     const oldPhase = onlinePhase;
 
@@ -1838,7 +1817,7 @@ function applyServerState(state) {
     isOnlineMyTurn = currentPlayer === onlineColor;
     onlinePhase = state.phase || 'waiting';
 
-    // ========== 新增：离开检测 ==========
+    // ========== 离开检测 ==========
     if (isOnlineMode && onlineRoomCode && onlinePlayerId) {
         const players = state.players || [];
         const playerInRoom = players.some(p => p.id === onlinePlayerId);
@@ -1876,14 +1855,12 @@ function applyServerState(state) {
         }
     }
 
-    // 历史记录变化（步数或最后一步内容不同）
     const movesChanged = (moveHistory.length !== oldMoveHistory.length) ||
         (moveHistory.length > 0 && oldMoveHistory.length > 0 &&
          (moveHistory[moveHistory.length - 1].row !== oldMoveHistory[oldMoveHistory.length - 1].row ||
           moveHistory[moveHistory.length - 1].col !== oldMoveHistory[oldMoveHistory.length - 1].col ||
           moveHistory[moveHistory.length - 1].player !== oldMoveHistory[oldMoveHistory.length - 1].player));
 
-    // ----- 处理落子动画标记（仅当历史新增一步）-----
     if (moveHistory.length > oldMoveHistory.length && !isReplayMode) {
         const last = moveHistory[moveHistory.length - 1];
         lastPlacedPosition = { row: last.row, col: last.col };
@@ -1891,17 +1868,14 @@ function applyServerState(state) {
         lastPlacedPosition = null;
     }
 
-    // ----- 仅当棋盘或历史变化时才重新绘制棋盘 -----
     if (boardChanged || movesChanged) {
         renderBoard();
     }
 
-    // ----- 以下 UI 更新始终执行（不涉及 DOM 重建）-----
     updateTurnText();
     updateEvaluation();
     updateHistoryList();
 
-    // ----- 在线投票、提示等逻辑保持不变 -----
     const pendingSize = state.pendingBoardSize;
     const hasBoardSizeVoted = pendingSize !== null && pendingSize !== undefined &&
         (state.boardSizeVotes || []).includes(onlinePlayerId);
@@ -2141,7 +2115,6 @@ function leaveRoom() {
 
     stopOnlinePolling();
 
-    // ----- 1. 先重置在线相关变量 -----
     onlineRoomCode = null;
     onlinePlayerId = null;
     onlineColor = null;
@@ -2153,19 +2126,15 @@ function leaveRoom() {
     restartPromptResolver = null;
     lastPromptedPendingUndo = false;
     undoPromptResolver = null;
-    // 清除身份信息
     clearOnlineIdentity(currentRoomCode);
 
-    // ----- 2. 再重置棋盘和游戏状态（内部会调用 updateTurnText，此时 onlineColor 已为 null）-----
     resetToIdleState();
 
-    // ----- 3. 发送离开请求（异步）-----
     if (currentRoomCode && currentPlayerId) {
         apiRequest("/leave-room", "POST", { code: currentRoomCode, playerId: currentPlayerId })
             .catch((error) => console.error(error));
     }
 
-    // ----- 4. 更新在线面板为 idle -----
     updateOnlinePanel("idle");
 
     setTimeout(() => {
@@ -2181,7 +2150,6 @@ function handleLeftRoom(reason) {
     const msg = reason || "对手已离开房间";
     alert(msg);
 
-    // ----- 1. 先重置在线相关变量 -----
     stopOnlinePolling();
     if (onlineRoomCode) {
         clearOnlineIdentity(onlineRoomCode);
@@ -2198,10 +2166,8 @@ function handleLeftRoom(reason) {
     lastPromptedPendingUndo = false;
     undoPromptResolver = null;
 
-    // ----- 2. 再重置棋盘和游戏状态 -----
     resetToIdleState();
 
-    // ----- 3. 更新在线面板为 idle -----
     updateOnlinePanel("idle");
 
     setTimeout(() => {
@@ -2216,15 +2182,12 @@ function handleOpponentLeft() {
     hasNotifiedNetworkError = true;
     alert("对手已离开房间");
 
-    // 重置棋盘和游戏状态
     resetToIdleState();
 
-    // 重置颜色和回合状态（保留房间号和房主身份）
     onlineColor = null;
     isOnlineMyTurn = false;
     onlinePhase = 'waiting';
 
-    // 更新 UI
     updateTurnText();
     updateOnlinePanel('waiting');
 
@@ -2239,25 +2202,19 @@ function handleNetworkError() {
     hasNotifiedNetworkError = true;
     alert("网络连接已断开，请检查网络后重新加入");
 
-    // 停止轮询
     stopOnlinePolling();
-    // 清除身份信息
     if (onlineRoomCode) {
         clearOnlineIdentity(onlineRoomCode);
     }
-    // 重置在线变量
     onlineRoomCode = null;
     onlinePlayerId = null;
     onlineColor = null;
     isOnlineMyTurn = false;
     onlinePhase = 'waiting';
-    // 重置棋盘和游戏状态
     resetToIdleState();
-    // 更新在线面板为 idle，并显示网络错误信息
     updateOnlinePanel("idle");
     onlineStatus.textContent = "网络错误，请检查网络连接";
 
-    // 延迟重置标志，避免短时间内重复弹窗
     setTimeout(() => {
         hasNotifiedNetworkError = false;
     }, 3000);
@@ -2272,7 +2229,6 @@ function updateOnlinePanel(state, stateData) {
         joinRoomBtn.disabled = false;
         roomCodeInput.disabled = false;
         roomCodeInput.value = "";
-        // 隐藏颜色选择
         const colorDiv = document.getElementById("colorSelection");
         if (colorDiv) colorDiv.classList.add("hidden");
         return;
@@ -2286,7 +2242,6 @@ function updateOnlinePanel(state, stateData) {
         createRoomBtn.disabled = true;
         joinRoomBtn.disabled = true;
         roomCodeInput.disabled = true;
-        // 隐藏颜色选择
         const colorDiv = document.getElementById("colorSelection");
         if (colorDiv) colorDiv.classList.add("hidden");
         return;
@@ -2301,15 +2256,12 @@ function updateOnlinePanel(state, stateData) {
         joinRoomBtn.disabled = true;
         roomCodeInput.disabled = true;
 
-        // 显示颜色选择区域
         const colorDiv = document.getElementById("colorSelection");
         if (colorDiv) colorDiv.classList.remove("hidden");
 
-        // 获取自己和对方信息
         const me = stateData?.players?.find(p => p.id === onlinePlayerId);
         const other = stateData?.players?.find(p => p.id !== onlinePlayerId);
 
-        // 默认按钮状态
         let blackDisabled = false;
         let whiteDisabled = false;
         let blackText = "⚫ 黑棋";
@@ -2320,11 +2272,9 @@ function updateOnlinePanel(state, stateData) {
             const mySelected = me.selectedColor;
             const otherSelected = other?.selectedColor;
 
-            // 根据自己选择状态设置按钮
             if (mySelected === 1) {
                 blackDisabled = true;
                 blackText = "⚫ 黑棋 (已选)";
-                // 白按钮是否可用取决于对方是否已选白
                 if (otherSelected === 2) {
                     whiteDisabled = true;
                     whiteText = "⚪ 白棋 (对方已选)";
@@ -2343,7 +2293,6 @@ function updateOnlinePanel(state, stateData) {
                     blackText = "⚫ 黑棋";
                 }
             } else {
-                // 自己未选，根据对方选择禁用对应颜色
                 if (otherSelected === 1) {
                     blackDisabled = true;
                     blackText = "⚫ 黑棋 (对方已选)";
@@ -2362,7 +2311,6 @@ function updateOnlinePanel(state, stateData) {
                 }
             }
 
-            // 生成状态提示文字
             if (otherSelected) {
                 const otherName = otherSelected === 1 ? "黑棋" : "白棋";
                 if (mySelected) {
@@ -2381,13 +2329,11 @@ function updateOnlinePanel(state, stateData) {
                 }
             }
         } else {
-            // 异常情况（无自己信息），默认启用所有按钮
             blackDisabled = false;
             whiteDisabled = false;
             statusMsg = "请选择你的棋子颜色";
         }
 
-        // 应用按钮状态
         chooseBlackBtn.disabled = blackDisabled;
         chooseWhiteBtn.disabled = whiteDisabled;
         chooseBlackBtn.textContent = blackText;
@@ -2398,7 +2344,6 @@ function updateOnlinePanel(state, stateData) {
     }
 
     if (state === "playing") {
-        // 隐藏颜色选择
         const colorDiv = document.getElementById("colorSelection");
         if (colorDiv) colorDiv.classList.add("hidden");
 
@@ -2417,7 +2362,6 @@ function updateOnlinePanel(state, stateData) {
     }
 }
 
-// 选择颜色
 function chooseColor(color) {
     if (!onlineRoomCode || !onlinePlayerId) {
         alert("请先加入房间");

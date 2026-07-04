@@ -408,13 +408,13 @@ select {
 #playerColorSelection {
     display: flex;
     flex-direction: column;
-    gap: 8px;  /* 调整此值控制行间距，如 4px、12px 等 */
+    gap: 8px;
     align-items: center;
 }
 #playerColorSelection > div {
     display: flex;
     align-items: center;
-    gap: 6px;  /* 标签与下拉框的水平间距 */
+    gap: 6px;
 }
 
 #onlinePanel input[type="text"] {
@@ -552,7 +552,7 @@ select {
         max-width: 600px;
         flex: 0 0 auto;
     }
-    /* 棋盘容器：让棋盘居中，但若溢出则允许滚动（自适应后通常不溢出） */
+    
     #boardContainer {
         display: flex;
         justify-content: center;
@@ -574,7 +574,7 @@ select {
         aspect-ratio: 1;
     }
 
-    /* 列标签：grid 自适应，偏移行标签宽度 */
+    /* 列标签 */
     #columnLabels {
         display: grid;
         grid-template-columns: repeat(var(--board-size), 1fr) !important;
@@ -589,11 +589,10 @@ select {
         display: flex;
         align-items: center;
         justify-content: center;
-        /* 字体大小由 JavaScript 动态设置，回退 14px */
         font-size: var(--cell-font-size, 14px);
     }
 
-    /* 行标签：flex 列，宽度固定，高度拉伸 */
+    /* 行标签 */
     #rowLabels {
         width: var(--coord-label-width);
         flex-shrink: 0;
@@ -610,14 +609,14 @@ select {
         font-size: var(--cell-font-size, 14px);
     }
 
-    /* 棋盘行容器：flex 拉伸行标签高度 */
+    /* 棋盘行容器 */
     #boardRow {
         display: flex;
         width: 100%;
         align-items: stretch;
     }
 
-    /* 棋盘容器内边距，保证背景合适 */
+    /* 棋盘容器 */
     #gameArea {
         width: 100%;
         padding: 15px;
@@ -625,7 +624,6 @@ select {
         margin: 0 auto;
     }
 
-    /* 历史面板等宽度自适应 */
     #historyPanel,
     #recordPanel,
     #replayPanel,
@@ -634,7 +632,6 @@ select {
         margin: 12px auto;
     }
 
-    /* 主题切换按钮与普通按钮一致 */
     #themeToggle {
         font-size: 16px;
         padding: 6px 12px;
