@@ -430,13 +430,16 @@ select {
     border-radius: 6px;
     background: var(--select-bg);
     color: var(--text-color);
-    text-transform: uppercase;
 }
 
 #onlineStatus {
     margin: 10px 0;
     font-weight: bold;
     min-height: 24px;
+}
+
+#roomCodeInput {
+    text-transform: uppercase;
 }
 
 #roomCodeDisplay {
