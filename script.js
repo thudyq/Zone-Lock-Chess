@@ -115,6 +115,7 @@ let lastPlacedPosition = null;
 let isOnlineMode = false;
 let onlineColor = null;
 let onlinePhase = 'waiting';
+let hasNotifiedLeave = false;
 let onlineRoomCode = null;
 let onlinePlayerId = null;
 let onlinePollingTimer = null;
@@ -447,6 +448,31 @@ function initializeGame() {
             triggerAiIfNeeded();
         }, 300);
     }
+}
+
+function resetToIdleState() {
+    // 清空棋盘（保持当前棋盘大小不变，但重置为空棋盘）
+    board = createEmptyBoard(boardSize);
+    moveHistory = [];
+    currentPlayer = PLAYER_BLACK;
+    gameOver = false;
+    lastPlacedPosition = null;
+    // 重置 AI 相关（如果有）
+    stopAiTimer();
+    // 退出回放模式（若有）
+    if (isReplayMode) {
+        exitReplayMode();
+    }
+    // 隐藏结束弹窗
+    overlay.classList.add("hidden");
+    // 重新渲染空白棋盘
+    renderBoard();
+    // 更新所有文本信息
+    updateTurnText();
+    updateEvaluation();
+    updateHistoryList();
+    // 清空本地存储的游戏状态（可选）
+    clearSavedGameState();
 }
 
 function createEmptyBoard(size) {
@@ -857,26 +883,30 @@ function updateTurnText() {
     }
 
     if (isOnlineMode) {
-    if (onlinePhase === 'color_selection') {
-            // 两人已在房间内，但尚未选择颜色
-            turnText.textContent = "在线对战：已进入房间";
-            moveCountText.textContent = "";
+        if (onlinePhase === 'color_selection') {
+                // 两人已在房间内，但尚未选择颜色
+                turnText.textContent = "在线对战：已进入房间";
+                moveCountText.textContent = "";
+                return;
+            }
+            if (onlineColor === null) {
+                // 如果已有房间号，说明是房主等待对手；否则是未加入状态
+                if (onlineRoomCode) {
+                    turnText.textContent = "在线对战：等待对手加入...";
+                } else {
+                    turnText.textContent = "在线对战：请创建房间或加入房间";
+                }
+                moveCountText.textContent = "";
+                return;
+            }
+            // 正常对局状态
+            const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
+            const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
+            const blackMoves = countLegalMoves(PLAYER_BLACK);
+            const whiteMoves = countLegalMoves(PLAYER_WHITE);
+            turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
+            moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
             return;
-        }
-        if (onlineColor === null) {
-            // 未加入房间或等待对手
-            turnText.textContent = "在线对战：请创建房间或加入房间";
-            moveCountText.textContent = "";
-            return;
-        }
-        // 正常对局状态
-        const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
-        const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
-        const blackMoves = countLegalMoves(PLAYER_BLACK);
-        const whiteMoves = countLegalMoves(PLAYER_WHITE);
-        turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
-        moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
-        return;
     }
     else if (gameModeSelect.value === "ai") {
         const playerSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
@@ -1476,7 +1506,13 @@ async function pollServerState() {
         applyServerState(state);
     } catch (error) {
         console.error(error);
-        onlineStatus.textContent = "同步失败，请检查网络";
+        // 判断是否为房间不存在或未授权（房主离开导致房间被删）
+        const msg = error.message || '';
+        if (msg.includes('404') || msg.includes('房间不存在') || msg.includes('未授权')) {
+            handleLeftRoom("你已离开房间或房间已解散");
+        } else {
+            onlineStatus.textContent = "同步失败，请检查网络";
+        }
     }
 }
 
@@ -1727,6 +1763,7 @@ function applyServerState(state) {
     const oldBoard = board.map(row => [...row]);      // 深拷贝当前棋盘
     const oldMoveHistory = moveHistory.slice();       // 保存旧历史
     const oldBoardSize = boardSize;
+    const oldPhase = onlinePhase;
 
     // ----- 更新全局变量（新状态）-----
     if (state.code) {
@@ -1743,6 +1780,28 @@ function applyServerState(state) {
     moveHistory = (state.moveHistory || []).map((move) => ({ ...move }));
     isOnlineMyTurn = currentPlayer === onlineColor;
     onlinePhase = state.phase || 'waiting';
+
+    // ========== 新增：离开检测 ==========
+    if (isOnlineMode && onlineRoomCode && onlinePlayerId) {
+        const players = state.players || [];
+        const playerInRoom = players.some(p => p.id === onlinePlayerId);
+
+        if (!playerInRoom) {
+            handleLeftRoom("你已离开房间或房间已解散");
+            return;
+        }
+
+        // 检测对方是否离开：只剩自己一人，且阶段从非 waiting 变为 waiting
+        if (players.length === 1 && state.phase === 'waiting' && oldPhase !== 'waiting') {
+            // 判断当前玩家是否是房主
+            if (state.hostId === onlinePlayerId) {
+                handleOpponentLeft();   // 房主：房客离开，保留房间
+            } else {
+                handleLeftRoom("对手已离开房间"); // 房客：房主离开，解散房间
+            }
+            return;
+        }
+    }
 
     // ----- 检测是否有变化 -----
     let boardChanged = false;
@@ -2018,30 +2077,98 @@ function handleOnlineGameOver(message) {
 }
 
 function leaveRoom() {
+    hasNotifiedLeave = true;
     const currentRoomCode = onlineRoomCode;
     const currentPlayerId = onlinePlayerId;
 
     stopOnlinePolling();
 
-    if (currentRoomCode && currentPlayerId) {
-        apiRequest("/leave-room", "POST", { code: currentRoomCode, playerId: currentPlayerId })
-            .catch((error) => console.error(error));
-    }
-
-    clearOnlineIdentity(currentRoomCode);
+    // ----- 1. 先重置在线相关变量 -----
     onlineRoomCode = null;
     onlinePlayerId = null;
     onlineColor = null;
     isOnlineMyTurn = false;
-    isOnlineMode = false;
+    onlinePhase = 'waiting';
     lastPromptedPendingBoardSize = null;
     boardSizePromptResolver = null;
     lastPromptedPendingRestart = false;
     restartPromptResolver = null;
     lastPromptedPendingUndo = false;
     undoPromptResolver = null;
-    onlinePhase = 'waiting';
+    // 清除身份信息
+    clearOnlineIdentity(currentRoomCode);
+
+    // ----- 2. 再重置棋盘和游戏状态（内部会调用 updateTurnText，此时 onlineColor 已为 null）-----
+    resetToIdleState();
+
+    // ----- 3. 发送离开请求（异步）-----
+    if (currentRoomCode && currentPlayerId) {
+        apiRequest("/leave-room", "POST", { code: currentRoomCode, playerId: currentPlayerId })
+            .catch((error) => console.error(error));
+    }
+
+    // ----- 4. 更新在线面板为 idle -----
     updateOnlinePanel("idle");
+
+    setTimeout(() => {
+        hasNotifiedLeave = false;
+    }, 500);
+}
+
+function handleLeftRoom(reason) {
+    if (hasNotifiedLeave) return;
+    hasNotifiedLeave = true;
+    const msg = reason || "对手已离开房间";
+    alert(msg);
+
+    // ----- 1. 先重置在线相关变量 -----
+    stopOnlinePolling();
+    if (onlineRoomCode) {
+        clearOnlineIdentity(onlineRoomCode);
+    }
+    onlineRoomCode = null;
+    onlinePlayerId = null;
+    onlineColor = null;
+    isOnlineMyTurn = false;
+    onlinePhase = 'waiting';
+    lastPromptedPendingBoardSize = null;
+    boardSizePromptResolver = null;
+    lastPromptedPendingRestart = false;
+    restartPromptResolver = null;
+    lastPromptedPendingUndo = false;
+    undoPromptResolver = null;
+
+    // ----- 2. 再重置棋盘和游戏状态 -----
+    resetToIdleState();
+
+    // ----- 3. 更新在线面板为 idle -----
+    updateOnlinePanel("idle");
+
+    setTimeout(() => {
+        hasNotifiedLeave = false;
+    }, 1000);
+}
+
+function handleOpponentLeft() {
+    if (hasNotifiedLeave) return;
+    hasNotifiedLeave = true;
+    alert("对手已离开房间");
+
+    // 重置棋盘和游戏状态
+    resetToIdleState();
+
+    // 重置颜色和回合状态（保留房间号和房主身份）
+    onlineColor = null;
+    isOnlineMyTurn = false;
+    onlinePhase = 'waiting';
+
+    // 更新 UI
+    updateTurnText();
+    updateOnlinePanel('waiting');
+
+    setTimeout(() => {
+        hasNotifiedLeave = false;
+    }, 1000);
 }
 
 function updateOnlinePanel(state, stateData) {

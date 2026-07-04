@@ -34,6 +34,7 @@ function createRoom(boardSize) {
         code,
         boardSize,
         players: [],
+        hostId: null,
         board: createBoard(boardSize),
         currentPlayer: 1,
         gameOver: false,
@@ -104,6 +105,7 @@ function getRoomState(room, playerId) {
         winner: room.winner,
         moveHistory: room.moveHistory,
         players: room.players.map((entry) => ({ id: entry.id, color: entry.color, selectedColor: entry.selectedColor })),
+        hostId: room.hostId,
         myColor: player ? player.color : null,
         status: room.phase,
         phase: room.phase,
@@ -258,6 +260,9 @@ function startServer(port) {
             const player = { id: playerId, color: null, selectedColor: null };
 
             room.players.push(player);
+            if (room.players.length === 1) {
+                room.hostId = playerId;   // 第一个玩家为房主
+            }
             if (room.players.length === 2) {
                 room.phase = 'color_selection';
             }
@@ -664,9 +669,36 @@ function startServer(port) {
             const { code, playerId } = body || {};
             const room = rooms.get(code);
             if (room) {
+                const isHost = room.hostId === playerId;
                 room.players = room.players.filter((entry) => entry.id !== playerId);
+
                 if (room.players.length === 0) {
+                    // 没有玩家了，直接删除房间
                     rooms.delete(room.code);
+                } else if (isHost) {
+                    // 房主离开，删除房间
+                    rooms.delete(room.code);
+                } else {
+                    // 房客离开，保留房间但重置状态
+                    room.phase = 'waiting';
+                    room.players.forEach(p => { p.color = null; p.selectedColor = null; });
+                    room.board = createBoard(room.boardSize);
+                    room.currentPlayer = 1;
+                    room.gameOver = false;
+                    room.winner = null;
+                    room.moveHistory = [];
+                    room.rematchVotes.clear();
+                    room.pendingBoardSize = null;
+                    room.boardSizeVotes.clear();
+                    room.boardSizeProposalBy = null;
+                    room.pendingRestart = false;
+                    room.restartVotes.clear();
+                    room.restartProposalBy = null;
+                    room.pendingUndo = false;
+                    room.undoVotes.clear();
+                    room.undoProposalBy = null;
+                    // 更新房主为剩余玩家
+                    room.hostId = room.players[0].id;
                 }
             }
             res.writeHead(200, { "Content-Type": "application/json" });
