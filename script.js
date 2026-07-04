@@ -349,6 +349,9 @@ playAgainBtn.addEventListener("click", () => {
     }
 
     overlay.classList.add("hidden");
+    if (gameModeSelect.value === "ai") {
+            playerColorSelect.value = String(PLAYER_BLACK);
+        }
     initializeGame();
 });
 
