@@ -642,6 +642,13 @@ function startServer(port) {
                     return;
                 }
 
+                const lastMove = room.moveHistory[room.moveHistory.length - 1];
+                if (lastMove.player !== player.color) {
+                    res.writeHead(403, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "只有最后落子的一方可以发起悔棋" }));
+                    return;
+                }
+                
                 if (!room.pendingUndo) {
                     room.pendingUndo = true;
                     room.undoProposalBy = playerId;

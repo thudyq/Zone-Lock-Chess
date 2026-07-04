@@ -321,6 +321,12 @@ undoBtn.addEventListener("click", () => {
             return;
         }
 
+        const lastMove = moveHistory[moveHistory.length - 1];
+        if (lastMove.player !== onlineColor) {
+            alert("只有最后落子的一方可以发起悔棋");
+            return;
+        }
+
         const message = "在线对战中悔棋需要双方确认。\n你提议悔掉上一步，是否发送请求？";
         if (confirm(message)) {
             sendUndoRequest();
