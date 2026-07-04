@@ -7,9 +7,14 @@ const DIRECTIONS = [
     [0, 1]
 ];
 const NEIGHBOR_DIRECTIONS = [
-    [-1, -1], [-1, 0], [-1, 1],
-    [0, -1], [0, 1],
-    [1, -1], [1, 0], [1, 1]
+    [-1, -1],
+    [-1, 0],
+    [-1, 1],
+    [0, -1],
+    [0, 1],
+    [1, -1],
+    [1, 0],
+    [1, 1]
 ];
 
 const AI_DELAY_MS = 300;
@@ -113,7 +118,7 @@ let lastPlacedPosition = null;
 
 let isOnlineMode = false;
 let onlineColor = null;
-let onlinePhase = 'waiting';
+let onlinePhase = "waiting";
 let hasNotifiedLeave = false;
 let hasNotifiedNetworkError = false;
 let onlineRoomCode = null;
@@ -345,8 +350,8 @@ playAgainBtn.addEventListener("click", () => {
 
     overlay.classList.add("hidden");
     if (gameModeSelect.value === "ai") {
-            playerColorSelect.value = String(PLAYER_BLACK);
-        }
+        playerColorSelect.value = String(PLAYER_BLACK);
+    }
     initializeGame();
 });
 
@@ -641,8 +646,8 @@ function loadSavedTheme() {
 
 // ==================== 棋盘渲染 ====================
 function renderBoard() {
-    document.documentElement.style.setProperty('--board-size', boardSize);
-    
+    document.documentElement.style.setProperty("--board-size", boardSize);
+
     boardDiv.innerHTML = "";
     columnLabelsDiv.innerHTML = "";
     rowLabelsDiv.innerHTML = "";
@@ -660,10 +665,10 @@ function renderBoard() {
     }
     lastPlacedPosition = null;
     setTimeout(() => {
-        const firstCell = document.querySelector('.cell');
+        const firstCell = document.querySelector(".cell");
         if (firstCell) {
             const cellWidth = firstCell.offsetWidth;
-            document.documentElement.style.setProperty('--cell-font-size', (cellWidth * 0.3) + 'px');
+            document.documentElement.style.setProperty("--cell-font-size", cellWidth * 0.3 + "px");
         }
     }, 20);
 }
@@ -717,9 +722,7 @@ function createCell(row, col) {
 function addHoverPreview(cell, displayPlayer) {
     if (!displayPlayer) return;
 
-    const previewClass = displayPlayer === PLAYER_BLACK
-        ? "preview-black"
-        : "preview-white";
+    const previewClass = displayPlayer === PLAYER_BLACK ? "preview-black" : "preview-white";
 
     cell.addEventListener("mouseenter", () => {
         cell.classList.add(previewClass);
@@ -745,6 +748,11 @@ function createPiece(player, row, col) {
 // ==================== 核心游戏逻辑 ====================
 function handleMove(row, col) {
     if (aiThinking || gameOver) return;
+
+    if (isOnlineMode && onlinePhase === 'color_selection') {
+        alert("请先选择棋子颜色！");
+        return;
+    }
 
     const actingPlayer = isOnlineMode ? onlineColor : currentPlayer;
     if (!actingPlayer || !isLegal(row, col, actingPlayer)) {
@@ -910,7 +918,7 @@ function undoLastMove() {
 // ==================== UI 更新 ====================
 function updateTurnText() {
     if (gameOver) {
-        return;  // 游戏结束时不更新文本，保留结束信息
+        return; // 游戏结束时不更新文本，保留结束信息
     }
     if (isReplayMode) {
         turnText.textContent = `回放中：第 ${replayIndex} / ${moveHistory.length} 步`;
@@ -919,34 +927,33 @@ function updateTurnText() {
     }
 
     if (isOnlineMode) {
-        if (onlinePhase === 'color_selection') {
-                // 两人已在房间内，但尚未选择颜色
-                turnText.textContent = "在线对战：已进入房间";
-                moveCountText.textContent = "";
-                return;
-            }
-            if (onlineColor === null) {
-                // 如果已有房间号，说明是房主等待对手；否则是未加入状态
-                if (onlineRoomCode) {
-                    turnText.textContent = "在线对战：等待对手加入...";
-                } else {
-                    turnText.textContent = "在线对战：请创建房间或加入房间";
-                }
-                moveCountText.textContent = "";
-                return;
-            }
-            
-            const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
-            const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
-            const blackMoves = countLegalMoves(PLAYER_BLACK);
-            const whiteMoves = countLegalMoves(PLAYER_WHITE);
-            turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
-            moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
+        if (onlinePhase === "color_selection") {
+            // 两人已在房间内，但尚未选择颜色
+            turnText.textContent = "在线对战：已进入房间";
+            moveCountText.textContent = "";
             return;
-    }
-    else if (gameModeSelect.value === "ai") {
+        }
+        if (onlineColor === null) {
+            // 如果已有房间号，说明是房主等待对手；否则是未加入状态
+            if (onlineRoomCode) {
+                turnText.textContent = "在线对战：等待对手加入...";
+            } else {
+                turnText.textContent = "在线对战：请创建房间或加入房间";
+            }
+            moveCountText.textContent = "";
+            return;
+        }
+
+        const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
+        const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
+        const blackMoves = countLegalMoves(PLAYER_BLACK);
+        const whiteMoves = countLegalMoves(PLAYER_WHITE);
+        turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
+        moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
+        return;
+    } else if (gameModeSelect.value === "ai") {
         const playerSymbol = currentPlayer === PLAYER_BLACK ? "⚫" : "⚪";
-        const isMyTurn = (currentPlayer === userColor);
+        const isMyTurn = currentPlayer === userColor;
         const turnInfo = isMyTurn ? "你的回合" : "AI 思考中...";
         const colorName = currentPlayer === PLAYER_BLACK ? "黑棋" : "白棋";
         turnText.textContent = `当前玩家：${playerSymbol} ${colorName} | ${turnInfo}`;
@@ -1078,9 +1085,7 @@ function evaluateMove(row, col, player) {
     const centerScore = getCenterScore(row, col);
     const groupScore = getGroupScore(row, col, player);
 
-    return WEIGHT_MOBILITY * mobilityScore
-        + WEIGHT_CENTER * centerScore
-        + WEIGHT_GROUP * groupScore;
+    return WEIGHT_MOBILITY * mobilityScore + WEIGHT_CENTER * centerScore + WEIGHT_GROUP * groupScore;
 }
 
 function findBestMoveMinimax(depth, player) {
@@ -1152,9 +1157,7 @@ function evaluateBoard() {
     const centerScore = getBoardCenterScore(PLAYER_WHITE) - getBoardCenterScore(PLAYER_BLACK);
     const groupScore = getBoardGroupScore(PLAYER_WHITE) - getBoardGroupScore(PLAYER_BLACK);
 
-    return WEIGHT_MOBILITY * mobilityScore
-        + WEIGHT_CENTER * centerScore
-        + WEIGHT_GROUP * groupScore;
+    return WEIGHT_MOBILITY * mobilityScore + WEIGHT_CENTER * centerScore + WEIGHT_GROUP * groupScore;
 }
 
 function getCenterScore(row, col) {
@@ -1225,10 +1228,10 @@ function exportRecord() {
 
     const dateStr = new Date().toISOString().slice(0, 10);
     const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const secs = String(now.getSeconds()).padStart(2, '0');
-    const timeStr = hours + '-' + minutes + '-' + secs;
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const secs = String(now.getSeconds()).padStart(2, "0");
+    const timeStr = hours + "-" + minutes + "-" + secs;
     link.href = url;
     link.download = `棋谱_${boardSize}x${boardSize}_${dateStr}_${timeStr}.json`;
     link.style.display = "none";
@@ -1265,19 +1268,24 @@ function importRecord(event) {
 }
 
 function validateRecord(record) {
-    return record
-        && record.version === "1.0"
-        && typeof record.boardSize === "number"
-        && [6, 8, 10, 12].includes(record.boardSize)
-        && Array.isArray(record.moves)
-        && record.moves.every((move) =>
-            typeof move.row === "number"
-            && typeof move.col === "number"
-            && typeof move.player === "number"
-            && move.row >= 0 && move.row < record.boardSize
-            && move.col >= 0 && move.col < record.boardSize
-            && (move.player === PLAYER_BLACK || move.player === PLAYER_WHITE)
-        );
+    return (
+        record &&
+        record.version === "1.0" &&
+        typeof record.boardSize === "number" &&
+        [6, 8, 10, 12].includes(record.boardSize) &&
+        Array.isArray(record.moves) &&
+        record.moves.every(
+            (move) =>
+                typeof move.row === "number" &&
+                typeof move.col === "number" &&
+                typeof move.player === "number" &&
+                move.row >= 0 &&
+                move.row < record.boardSize &&
+                move.col >= 0 &&
+                move.col < record.boardSize &&
+                (move.player === PLAYER_BLACK || move.player === PLAYER_WHITE)
+        )
+    );
 }
 
 function enterReplayMode(record) {
@@ -1542,11 +1550,18 @@ async function pollServerState() {
         applyServerState(state);
     } catch (error) {
         console.error(error);
-        const msg = error.message || '';
+        const msg = error.message || "";
         // 判断是否为网络断开（无法连接服务器）
-        if (msg.includes('fetch') || msg.includes('NetworkError') || msg.includes('无法连接') || msg.includes('Failed to fetch') || msg.includes('network') || error instanceof TypeError) {
+        if (
+            msg.includes("fetch") ||
+            msg.includes("NetworkError") ||
+            msg.includes("无法连接") ||
+            msg.includes("Failed to fetch") ||
+            msg.includes("network") ||
+            error instanceof TypeError
+        ) {
             handleNetworkError();
-        } else if (msg.includes('404') || msg.includes('房间不存在') || msg.includes('未授权')) {
+        } else if (msg.includes("404") || msg.includes("房间不存在") || msg.includes("未授权")) {
             handleLeftRoom("你已离开房间或房间已解散");
         } else {
             onlineStatus.textContent = "同步失败，请检查网络";
@@ -1591,16 +1606,16 @@ function joinServerRoom(code, isHost) {
             startOnlinePolling();
             pollServerState();
 
-            const phase = data.phase || 'waiting';
-            if (phase === 'waiting') {
+            const phase = data.phase || "waiting";
+            if (phase === "waiting") {
                 onlineStatus.textContent = isHost ? "房间已创建，分享房间号给对手" : "已加入房间，等待对手...";
-                updateOnlinePanel('waiting');
-            } else if (phase === 'color_selection') {
+                updateOnlinePanel("waiting");
+            } else if (phase === "color_selection") {
                 onlineStatus.textContent = "等待双方选择颜色...";
-                updateOnlinePanel('color_selection', { players: [] });
+                updateOnlinePanel("color_selection", { players: [] });
             } else {
                 onlineStatus.textContent = "对局进行中";
-                updateOnlinePanel('playing');
+                updateOnlinePanel("playing");
             }
         })
         .catch((error) => {
@@ -1796,7 +1811,7 @@ function applyServerState(state) {
     if (!state) return;
 
     // ----- 保存旧状态，用于变化检测 -----
-    const oldBoard = board.map(row => [...row]); 
+    const oldBoard = board.map((row) => [...row]);
     const oldMoveHistory = moveHistory.slice();
     const oldBoardSize = boardSize;
     const oldPhase = onlinePhase;
@@ -1815,12 +1830,12 @@ function applyServerState(state) {
     gameOver = !!state.gameOver;
     moveHistory = (state.moveHistory || []).map((move) => ({ ...move }));
     isOnlineMyTurn = currentPlayer === onlineColor;
-    onlinePhase = state.phase || 'waiting';
+    onlinePhase = state.phase || "waiting";
 
     // ========== 离开检测 ==========
     if (isOnlineMode && onlineRoomCode && onlinePlayerId) {
         const players = state.players || [];
-        const playerInRoom = players.some(p => p.id === onlinePlayerId);
+        const playerInRoom = players.some((p) => p.id === onlinePlayerId);
 
         if (!playerInRoom) {
             handleLeftRoom("你已离开房间或房间已解散");
@@ -1828,10 +1843,10 @@ function applyServerState(state) {
         }
 
         // 检测对方是否离开：只剩自己一人，且阶段从非 waiting 变为 waiting
-        if (players.length === 1 && state.phase === 'waiting' && oldPhase !== 'waiting') {
+        if (players.length === 1 && state.phase === "waiting" && oldPhase !== "waiting") {
             // 判断当前玩家是否是房主
             if (state.hostId === onlinePlayerId) {
-                handleOpponentLeft();   // 房主：房客离开，保留房间
+                handleOpponentLeft(); // 房主：房客离开，保留房间
             } else {
                 handleLeftRoom("对手已离开房间"); // 房客：房主离开，解散房间
             }
@@ -1855,11 +1870,13 @@ function applyServerState(state) {
         }
     }
 
-    const movesChanged = (moveHistory.length !== oldMoveHistory.length) ||
-        (moveHistory.length > 0 && oldMoveHistory.length > 0 &&
-         (moveHistory[moveHistory.length - 1].row !== oldMoveHistory[oldMoveHistory.length - 1].row ||
-          moveHistory[moveHistory.length - 1].col !== oldMoveHistory[oldMoveHistory.length - 1].col ||
-          moveHistory[moveHistory.length - 1].player !== oldMoveHistory[oldMoveHistory.length - 1].player));
+    const movesChanged =
+        moveHistory.length !== oldMoveHistory.length ||
+        (moveHistory.length > 0 &&
+            oldMoveHistory.length > 0 &&
+            (moveHistory[moveHistory.length - 1].row !== oldMoveHistory[oldMoveHistory.length - 1].row ||
+                moveHistory[moveHistory.length - 1].col !== oldMoveHistory[oldMoveHistory.length - 1].col ||
+                moveHistory[moveHistory.length - 1].player !== oldMoveHistory[oldMoveHistory.length - 1].player));
 
     if (moveHistory.length > oldMoveHistory.length && !isReplayMode) {
         const last = moveHistory[moveHistory.length - 1];
@@ -1877,10 +1894,10 @@ function applyServerState(state) {
     updateHistoryList();
 
     const pendingSize = state.pendingBoardSize;
-    const hasBoardSizeVoted = pendingSize !== null && pendingSize !== undefined &&
-        (state.boardSizeVotes || []).includes(onlinePlayerId);
-    const isProposalOwner = pendingSize !== null && pendingSize !== undefined &&
-        state.boardSizeProposalBy === onlinePlayerId;
+    const hasBoardSizeVoted =
+        pendingSize !== null && pendingSize !== undefined && (state.boardSizeVotes || []).includes(onlinePlayerId);
+    const isProposalOwner =
+        pendingSize !== null && pendingSize !== undefined && state.boardSizeProposalBy === onlinePlayerId;
 
     if (pendingSize !== null && pendingSize !== undefined) {
         isUpdatingBoardSize = true;
@@ -1908,7 +1925,7 @@ function applyServerState(state) {
         }
     } else {
         overlay.classList.add("hidden");
-        const phase = state.phase || 'playing';
+        const phase = state.phase || "playing";
         updateOnlinePanel(phase, state); // 传递 state 以便更新颜色选择 UI
     }
 
@@ -1935,10 +1952,10 @@ function applyServerState(state) {
 
 function updateOnlineStatusText(state) {
     const pendingSize = state.pendingBoardSize;
-    const isProposalOwner = pendingSize !== null && pendingSize !== undefined &&
-        state.boardSizeProposalBy === onlinePlayerId;
-    const hasVoted = pendingSize !== null && pendingSize !== undefined &&
-        (state.boardSizeVotes || []).includes(onlinePlayerId);
+    const isProposalOwner =
+        pendingSize !== null && pendingSize !== undefined && state.boardSizeProposalBy === onlinePlayerId;
+    const hasVoted =
+        pendingSize !== null && pendingSize !== undefined && (state.boardSizeVotes || []).includes(onlinePlayerId);
 
     if (pendingSize !== null && pendingSize !== undefined) {
         if (isProposalOwner) {
@@ -2119,7 +2136,7 @@ function leaveRoom() {
     onlinePlayerId = null;
     onlineColor = null;
     isOnlineMyTurn = false;
-    onlinePhase = 'waiting';
+    onlinePhase = "waiting";
     lastPromptedPendingBoardSize = null;
     boardSizePromptResolver = null;
     lastPromptedPendingRestart = false;
@@ -2131,8 +2148,9 @@ function leaveRoom() {
     resetToIdleState();
 
     if (currentRoomCode && currentPlayerId) {
-        apiRequest("/leave-room", "POST", { code: currentRoomCode, playerId: currentPlayerId })
-            .catch((error) => console.error(error));
+        apiRequest("/leave-room", "POST", { code: currentRoomCode, playerId: currentPlayerId }).catch((error) =>
+            console.error(error)
+        );
     }
 
     updateOnlinePanel("idle");
@@ -2158,7 +2176,7 @@ function handleLeftRoom(reason) {
     onlinePlayerId = null;
     onlineColor = null;
     isOnlineMyTurn = false;
-    onlinePhase = 'waiting';
+    onlinePhase = "waiting";
     lastPromptedPendingBoardSize = null;
     boardSizePromptResolver = null;
     lastPromptedPendingRestart = false;
@@ -2186,10 +2204,10 @@ function handleOpponentLeft() {
 
     onlineColor = null;
     isOnlineMyTurn = false;
-    onlinePhase = 'waiting';
+    onlinePhase = "waiting";
 
     updateTurnText();
-    updateOnlinePanel('waiting');
+    updateOnlinePanel("waiting");
 
     setTimeout(() => {
         hasNotifiedLeave = false;
@@ -2210,7 +2228,7 @@ function handleNetworkError() {
     onlinePlayerId = null;
     onlineColor = null;
     isOnlineMyTurn = false;
-    onlinePhase = 'waiting';
+    onlinePhase = "waiting";
     resetToIdleState();
     updateOnlinePanel("idle");
     onlineStatus.textContent = "网络错误，请检查网络连接";
@@ -2233,7 +2251,7 @@ function updateOnlinePanel(state, stateData) {
         if (colorDiv) colorDiv.classList.add("hidden");
         return;
     }
-    
+
     if (state === "waiting") {
         onlineStatus.textContent = "等待对手加入...";
         roomCodeDisplay.textContent = `房间号(点击复制)：${onlineRoomCode}`;
@@ -2246,7 +2264,7 @@ function updateOnlinePanel(state, stateData) {
         if (colorDiv) colorDiv.classList.add("hidden");
         return;
     }
-    
+
     if (state === "color_selection") {
         onlineStatus.textContent = "选择棋子颜色";
         roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
@@ -2259,8 +2277,8 @@ function updateOnlinePanel(state, stateData) {
         const colorDiv = document.getElementById("colorSelection");
         if (colorDiv) colorDiv.classList.remove("hidden");
 
-        const me = stateData?.players?.find(p => p.id === onlinePlayerId);
-        const other = stateData?.players?.find(p => p.id !== onlinePlayerId);
+        const me = stateData?.players?.find((p) => p.id === onlinePlayerId);
+        const other = stateData?.players?.find((p) => p.id !== onlinePlayerId);
 
         let blackDisabled = false;
         let whiteDisabled = false;
@@ -2372,14 +2390,13 @@ function chooseColor(color) {
         playerId: onlinePlayerId,
         color: color
     })
-        .then(data => {
+        .then((data) => {
             applyServerState(data.state);
         })
-        .catch(error => {
+        .catch((error) => {
             alert(error.message);
         });
 }
-
 
 if (chooseBlackBtn) {
     chooseBlackBtn.addEventListener("click", () => chooseColor(1));

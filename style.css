@@ -66,7 +66,9 @@ body {
     color: var(--text-color);
     font-family: Arial, sans-serif;
     text-align: center;
-    transition: background-color 0.3s, color 0.3s;
+    transition:
+        background-color 0.3s,
+        color 0.3s;
 }
 
 button,
@@ -78,7 +80,9 @@ select {
     background: var(--button-bg);
     color: var(--button-text);
     cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
+    transition:
+        background-color 0.2s,
+        transform 0.1s;
 }
 
 button:hover:not(:disabled) {
@@ -192,7 +196,9 @@ select {
     border: 1px solid var(--panel-border);
     border-radius: 12px;
     box-shadow: var(--panel-shadow);
-    transition: background-color 0.3s, border-color 0.3s;
+    transition:
+        background-color 0.3s,
+        border-color 0.3s;
 }
 
 .panelCard h3 {
@@ -284,7 +290,8 @@ select {
 }
 
 @keyframes pulse {
-    0%, 100% {
+    0%,
+    100% {
         transform: scale(1);
         opacity: 1;
     }
@@ -552,7 +559,7 @@ select {
         max-width: 600px;
         flex: 0 0 auto;
     }
-    
+
     #boardContainer {
         display: flex;
         justify-content: center;
@@ -647,9 +654,17 @@ select {
         --coord-label-height: 28px;
     }
 
-    h1 { font-size: 24px; }
-    button, select { padding: 6px 12px; font-size: 14px; }
-    #topBar { gap: 8px; }
+    h1 {
+        font-size: 24px;
+    }
+    button,
+    select {
+        padding: 6px 12px;
+        font-size: 14px;
+    }
+    #topBar {
+        gap: 8px;
+    }
 
     /* 棋盘自适应 */
     #board {
@@ -662,7 +677,9 @@ select {
         gap: 1px !important;
     }
 
-    .panelCard { padding: 12px; }
+    .panelCard {
+        padding: 12px;
+    }
     #gameArea {
         padding: 8px 12px 12px 8px;
     }
