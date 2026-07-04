@@ -114,6 +114,7 @@ let lastPlacedPosition = null;
 
 let isOnlineMode = false;
 let onlineColor = null;
+let onlinePhase = 'waiting';
 let onlineRoomCode = null;
 let onlinePlayerId = null;
 let onlinePollingTimer = null;
@@ -856,20 +857,25 @@ function updateTurnText() {
     }
 
     if (isOnlineMode) {
+    if (onlinePhase === 'color_selection') {
+            // 两人已在房间内，但尚未选择颜色
+            turnText.textContent = "在线对战：已进入房间";
+            moveCountText.textContent = "";
+            return;
+        }
         if (onlineColor === null) {
+            // 未加入房间或等待对手
             turnText.textContent = "在线对战：请创建房间或加入房间";
             moveCountText.textContent = "";
-            updateOnlinePanel("idle");
-        } else {
-            const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
-            const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
-            const blackMoves = countLegalMoves(PLAYER_BLACK);
-            const whiteMoves = countLegalMoves(PLAYER_WHITE);
-
-            turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
-            moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
-            updateOnlinePanel("playing");
+            return;
         }
+        // 正常对局状态
+        const colorText = onlineColor === PLAYER_BLACK ? "黑棋" : "白棋";
+        const playerSymbol = onlineColor === PLAYER_BLACK ? "⚫" : "⚪";
+        const blackMoves = countLegalMoves(PLAYER_BLACK);
+        const whiteMoves = countLegalMoves(PLAYER_WHITE);
+        turnText.textContent = `你是 ${playerSymbol} ${colorText}｜${isOnlineMyTurn ? "轮到你了" : "等待对手落子"}`;
+        moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
         return;
     }
     else if (gameModeSelect.value === "ai") {
@@ -1736,6 +1742,7 @@ function applyServerState(state) {
     gameOver = !!state.gameOver;
     moveHistory = (state.moveHistory || []).map((move) => ({ ...move }));
     isOnlineMyTurn = currentPlayer === onlineColor;
+    onlinePhase = state.phase || 'waiting';
 
     // ----- 检测是否有变化 -----
     let boardChanged = false;
@@ -2033,6 +2040,7 @@ function leaveRoom() {
     restartPromptResolver = null;
     lastPromptedPendingUndo = false;
     undoPromptResolver = null;
+    onlinePhase = 'waiting';
     updateOnlinePanel("idle");
 }
 
@@ -2064,9 +2072,8 @@ function updateOnlinePanel(state, stateData) {
         return;
     }
     
-    // 颜色选择阶段
     if (state === "color_selection") {
-        onlineStatus.textContent = "请选择你的棋子颜色";
+        onlineStatus.textContent = "选择棋子颜色";
         roomCodeDisplay.textContent = `房间号：${onlineRoomCode}`;
         roomCodeDisplay.classList.remove("hidden");
         leaveRoomBtn.classList.remove("hidden");
@@ -2077,45 +2084,96 @@ function updateOnlinePanel(state, stateData) {
         // 显示颜色选择区域
         const colorDiv = document.getElementById("colorSelection");
         if (colorDiv) colorDiv.classList.remove("hidden");
-   
-        chooseBlackBtn.disabled = false;
-        chooseWhiteBtn.disabled = false;
-        chooseBlackBtn.textContent = "⚫ 黑棋";
-        chooseWhiteBtn.textContent = "⚪ 白棋";
-        colorStatus.textContent = "对方选择：未选择";
 
-        // 更新按钮状态和提示
-        if (stateData && stateData.players) {
-            const me = stateData.players.find(p => p.id === onlinePlayerId);
-            const other = stateData.players.find(p => p.id !== onlinePlayerId);
-            if (me) {
-                // 我的选择
-                if (me.selectedColor === 1) {
-                    chooseBlackBtn.disabled = true;
-                    chooseBlackBtn.textContent = "⚫ 黑棋 (已选)";
-                    chooseWhiteBtn.disabled = false;
-                    chooseWhiteBtn.textContent = "⚪ 白棋";
-                } else if (me.selectedColor === 2) {
-                    chooseWhiteBtn.disabled = true;
-                    chooseWhiteBtn.textContent = "⚪ 白棋 (已选)";
-                    chooseBlackBtn.disabled = false;
-                    chooseBlackBtn.textContent = "⚫ 黑棋";
+        // 获取自己和对方信息
+        const me = stateData?.players?.find(p => p.id === onlinePlayerId);
+        const other = stateData?.players?.find(p => p.id !== onlinePlayerId);
+
+        // 默认按钮状态
+        let blackDisabled = false;
+        let whiteDisabled = false;
+        let blackText = "⚫ 黑棋";
+        let whiteText = "⚪ 白棋";
+        let statusMsg = "";
+
+        if (me) {
+            const mySelected = me.selectedColor;
+            const otherSelected = other?.selectedColor;
+
+            // 根据自己选择状态设置按钮
+            if (mySelected === 1) {
+                blackDisabled = true;
+                blackText = "⚫ 黑棋 (已选)";
+                // 白按钮是否可用取决于对方是否已选白
+                if (otherSelected === 2) {
+                    whiteDisabled = true;
+                    whiteText = "⚪ 白棋 (对方已选)";
                 } else {
-                    chooseBlackBtn.disabled = false;
-                    chooseWhiteBtn.disabled = false;
-                    chooseBlackBtn.textContent = "⚫ 黑棋";
-                    chooseWhiteBtn.textContent = "⚪ 白棋";
+                    whiteDisabled = false;
+                    whiteText = "⚪ 白棋";
                 }
-                // 对方选择状态
-                if (other) {
-                    const otherColor = other.selectedColor;
-                    let otherText = "未选择";
-                    if (otherColor === 1) otherText = "黑棋";
-                    else if (otherColor === 2) otherText = "白棋";
-                    colorStatus.textContent = `对方选择：${otherText}`;
+            } else if (mySelected === 2) {
+                whiteDisabled = true;
+                whiteText = "⚪ 白棋 (已选)";
+                if (otherSelected === 1) {
+                    blackDisabled = true;
+                    blackText = "⚫ 黑棋 (对方已选)";
+                } else {
+                    blackDisabled = false;
+                    blackText = "⚫ 黑棋";
+                }
+            } else {
+                // 自己未选，根据对方选择禁用对应颜色
+                if (otherSelected === 1) {
+                    blackDisabled = true;
+                    blackText = "⚫ 黑棋 (对方已选)";
+                    whiteDisabled = false;
+                    whiteText = "⚪ 白棋";
+                } else if (otherSelected === 2) {
+                    whiteDisabled = true;
+                    whiteText = "⚪ 白棋 (对方已选)";
+                    blackDisabled = false;
+                    blackText = "⚫ 黑棋";
+                } else {
+                    blackDisabled = false;
+                    whiteDisabled = false;
+                    blackText = "⚫ 黑棋";
+                    whiteText = "⚪ 白棋";
                 }
             }
+
+            // 生成状态提示文字
+            if (otherSelected) {
+                const otherName = otherSelected === 1 ? "黑棋" : "白棋";
+                if (mySelected) {
+                    const myName = mySelected === 1 ? "黑棋" : "白棋";
+                    statusMsg = `你已选择 ${myName}，对方已选择 ${otherName}`;
+                } else {
+                    const available = otherSelected === 1 ? "白棋" : "黑棋";
+                    statusMsg = `对方已选择 ${otherName}，你只能选择 ${available}`;
+                }
+            } else {
+                if (mySelected) {
+                    const myName = mySelected === 1 ? "黑棋" : "白棋";
+                    statusMsg = `你已选择 ${myName}，等待对方选择...`;
+                } else {
+                    statusMsg = "";
+                }
+            }
+        } else {
+            // 异常情况（无自己信息），默认启用所有按钮
+            blackDisabled = false;
+            whiteDisabled = false;
+            statusMsg = "请选择你的棋子颜色";
         }
+
+        // 应用按钮状态
+        chooseBlackBtn.disabled = blackDisabled;
+        chooseWhiteBtn.disabled = whiteDisabled;
+        chooseBlackBtn.textContent = blackText;
+        chooseWhiteBtn.textContent = whiteText;
+        colorStatus.textContent = statusMsg;
+
         return;
     }
 
