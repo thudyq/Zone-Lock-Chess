@@ -274,8 +274,11 @@ select {
 .legal-move::after {
     content: "";
     position: absolute;
-    width: calc(var(--cell-size) * 0.2);
-    height: calc(var(--cell-size) * 0.2);
+    width: 20%;
+    height: 20%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     border-radius: 50%;
     background-color: var(--legal-move-color);
 }
@@ -539,6 +542,8 @@ select {
         flex-direction: column;
         align-items: center;
         gap: 20px;
+        justify-content: center;
+        overflow-x: hidden;
     }
     #infoPanel,
     #boardContainer,
@@ -547,18 +552,93 @@ select {
         max-width: 600px;
         flex: 0 0 auto;
     }
+    /* 棋盘容器：让棋盘居中，但若溢出则允许滚动（自适应后通常不溢出） */
     #boardContainer {
         display: flex;
         justify-content: center;
+        overflow-x: auto;
     }
+
+    /* ===== 棋盘自适应 ===== */
+    #board {
+        grid-template-columns: repeat(var(--board-size), 1fr) !important;
+        grid-template-rows: repeat(var(--board-size), 1fr) !important;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+        gap: 2px;
+    }
+    .cell {
+        width: auto !important;
+        height: auto !important;
+        aspect-ratio: 1;
+    }
+
+    /* 列标签：grid 自适应，偏移行标签宽度 */
+    #columnLabels {
+        display: grid;
+        grid-template-columns: repeat(var(--board-size), 1fr) !important;
+        gap: 2px;
+        width: calc(100% - var(--coord-label-width));
+        margin-left: var(--coord-label-width);
+        box-sizing: border-box;
+    }
+    #columnLabels .coord-label {
+        width: auto !important;
+        height: var(--coord-label-height);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* 字体大小由 JavaScript 动态设置，回退 14px */
+        font-size: var(--cell-font-size, 14px);
+    }
+
+    /* 行标签：flex 列，宽度固定，高度拉伸 */
+    #rowLabels {
+        width: var(--coord-label-width);
+        flex-shrink: 0;
+        gap: 2px;
+        display: flex;
+        flex-direction: column;
+    }
+    #rowLabels .coord-label {
+        flex: 1;
+        height: auto !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--cell-font-size, 14px);
+    }
+
+    /* 棋盘行容器：flex 拉伸行标签高度 */
+    #boardRow {
+        display: flex;
+        width: 100%;
+        align-items: stretch;
+    }
+
+    /* 棋盘容器内边距，保证背景合适 */
     #gameArea {
+        width: 100%;
+        padding: 15px;
+        box-sizing: border-box;
         margin: 0 auto;
     }
+
+    /* 历史面板等宽度自适应 */
     #historyPanel,
     #recordPanel,
     #replayPanel,
     #onlinePanel {
         width: 100%;
+        margin: 12px auto;
+    }
+
+    /* 主题切换按钮与普通按钮一致 */
+    #themeToggle {
+        font-size: 16px;
+        padding: 6px 12px;
+        line-height: 1.4;
     }
 }
 
@@ -570,46 +650,29 @@ select {
         --coord-label-height: 28px;
     }
 
-    h1 {
-        font-size: 24px;
-    }
+    h1 { font-size: 24px; }
+    button, select { padding: 6px 12px; font-size: 14px; }
+    #topBar { gap: 8px; }
 
-    button,
-    select {
-        padding: 6px 12px;
-        font-size: 14px;
-    }
-
-    #topBar {
-        gap: 8px;
-    }
-
+    /* 棋盘自适应 */
     #board {
-        gap: 1px;
+        gap: 1px !important;
     }
     #columnLabels {
         gap: 1px;
     }
     #rowLabels {
-        gap: 1px;
+        gap: 1px !important;
     }
 
-    .coord-label {
-        font-size: 12px;
-    }
-
+    .panelCard { padding: 12px; }
     #gameArea {
         padding: 8px 12px 12px 8px;
     }
-
-    .panelCard {
-        padding: 12px;
-    }
-
-    #historyPanel,
-    #recordPanel,
-    #replayPanel {
-        margin: 12px auto;
+    #themeToggle {
+        font-size: 14px;
+        padding: 6px 10px;
+        line-height: 1.4;
     }
 }
 
@@ -628,9 +691,6 @@ select {
     }
     #rowLabels {
         gap: 1px;
-    }
-    .coord-label {
-        font-size: 10px;
     }
     #gameArea {
         padding: 6px 10px 10px 6px;
@@ -661,12 +721,12 @@ select {
         gap: 1px;
     }
 
-    .coord-label {
-        font-size: 9px;
-    }
-
     #gameArea {
-        padding: 4px 5px 5px 4px;
+        padding: 4px 8px 8px 4px;
+    }
+    #themeToggle {
+        font-size: 14px;
+        padding: 4px 8px;
     }
 }
 
@@ -677,11 +737,15 @@ select {
         --coord-label-width: 18px;
         --coord-label-height: 18px;
     }
-    .coord-label {
-        font-size: 8px;
-    }
     #gameArea {
         padding: 2px;
+    }
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+    #mainArea {
+        justify-content: flex-start;
+        overflow-x: auto;
     }
 }
 

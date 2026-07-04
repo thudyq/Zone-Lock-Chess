@@ -651,6 +651,8 @@ function loadSavedTheme() {
 
 // ==================== 棋盘渲染 ====================
 function renderBoard() {
+    document.documentElement.style.setProperty('--board-size', boardSize);
+    
     boardDiv.innerHTML = "";
     columnLabelsDiv.innerHTML = "";
     rowLabelsDiv.innerHTML = "";
@@ -667,6 +669,13 @@ function renderBoard() {
         }
     }
     lastPlacedPosition = null;
+    setTimeout(() => {
+        const firstCell = document.querySelector('.cell');
+        if (firstCell) {
+            const cellWidth = firstCell.offsetWidth;
+            document.documentElement.style.setProperty('--cell-font-size', (cellWidth * 0.3) + 'px');
+        }
+    }, 20);
 }
 
 function renderColumnLabels() {
