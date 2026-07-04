@@ -116,6 +116,7 @@ let isOnlineMode = false;
 let onlineColor = null;
 let onlinePhase = 'waiting';
 let hasNotifiedLeave = false;
+let hasNotifiedNetworkError = false;
 let onlineRoomCode = null;
 let onlinePlayerId = null;
 let onlinePollingTimer = null;
@@ -456,6 +457,7 @@ function initializeGame() {
     restartPromptResolver = null;
     lastPromptedPendingUndo = false;
     undoPromptResolver = null;
+    hasNotifiedNetworkError = false;
 
     previousBoardSize = boardSizeSelect.value;
     previousGameMode = gameModeSelect.value;
@@ -1520,7 +1522,7 @@ async function apiRequest(path, method, body) {
             body: body ? JSON.stringify(body) : undefined
         });
     } catch (networkError) {
-        throw new Error(`无法连接到服务器 (${serverUrl})，请确认：1. 已运行 node server.js；2. 浏览器通过 http://localhost:3000 访问本页面。`);
+        throw new Error(`无法连接到服务器 (${serverUrl})`);
     }
 
     const text = await response.text();
@@ -1558,9 +1560,11 @@ async function pollServerState() {
         applyServerState(state);
     } catch (error) {
         console.error(error);
-        // 判断是否为房间不存在或未授权（房主离开导致房间被删）
         const msg = error.message || '';
-        if (msg.includes('404') || msg.includes('房间不存在') || msg.includes('未授权')) {
+        // 判断是否为网络断开（无法连接服务器）
+        if (msg.includes('fetch') || msg.includes('NetworkError') || msg.includes('无法连接') || msg.includes('Failed to fetch') || msg.includes('network') || error instanceof TypeError) {
+            handleNetworkError();
+        } else if (msg.includes('404') || msg.includes('房间不存在') || msg.includes('未授权')) {
             handleLeftRoom("你已离开房间或房间已解散");
         } else {
             onlineStatus.textContent = "同步失败，请检查网络";
@@ -1592,6 +1596,7 @@ function joinRoom() {
 function joinServerRoom(code, isHost) {
     apiRequest("/join-room", "POST", { code })
         .then((data) => {
+            hasNotifiedNetworkError = false;
             onlineRoomCode = code;
             onlinePlayerId = data.playerId;
             onlineColor = data.color; // 此时为 null
@@ -2130,6 +2135,7 @@ function handleOnlineGameOver(message) {
 
 function leaveRoom() {
     hasNotifiedLeave = true;
+    hasNotifiedNetworkError = true;
     const currentRoomCode = onlineRoomCode;
     const currentPlayerId = onlinePlayerId;
 
@@ -2164,12 +2170,14 @@ function leaveRoom() {
 
     setTimeout(() => {
         hasNotifiedLeave = false;
+        hasNotifiedNetworkError = false;
     }, 500);
 }
 
 function handleLeftRoom(reason) {
     if (hasNotifiedLeave) return;
     hasNotifiedLeave = true;
+    hasNotifiedNetworkError = true;
     const msg = reason || "对手已离开房间";
     alert(msg);
 
@@ -2198,12 +2206,14 @@ function handleLeftRoom(reason) {
 
     setTimeout(() => {
         hasNotifiedLeave = false;
+        hasNotifiedNetworkError = false;
     }, 1000);
 }
 
 function handleOpponentLeft() {
     if (hasNotifiedLeave) return;
     hasNotifiedLeave = true;
+    hasNotifiedNetworkError = true;
     alert("对手已离开房间");
 
     // 重置棋盘和游戏状态
@@ -2220,7 +2230,37 @@ function handleOpponentLeft() {
 
     setTimeout(() => {
         hasNotifiedLeave = false;
+        hasNotifiedNetworkError = false;
     }, 1000);
+}
+
+function handleNetworkError() {
+    if (hasNotifiedNetworkError) return;
+    hasNotifiedNetworkError = true;
+    alert("网络连接已断开，请检查网络后重新加入");
+
+    // 停止轮询
+    stopOnlinePolling();
+    // 清除身份信息
+    if (onlineRoomCode) {
+        clearOnlineIdentity(onlineRoomCode);
+    }
+    // 重置在线变量
+    onlineRoomCode = null;
+    onlinePlayerId = null;
+    onlineColor = null;
+    isOnlineMyTurn = false;
+    onlinePhase = 'waiting';
+    // 重置棋盘和游戏状态
+    resetToIdleState();
+    // 更新在线面板为 idle，并显示网络错误信息
+    updateOnlinePanel("idle");
+    onlineStatus.textContent = "网络错误，请检查网络连接";
+
+    // 延迟重置标志，避免短时间内重复弹窗
+    setTimeout(() => {
+        hasNotifiedNetworkError = false;
+    }, 3000);
 }
 
 function updateOnlinePanel(state, stateData) {
