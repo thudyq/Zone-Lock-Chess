@@ -8,10 +8,10 @@ const ROOM_CODE_LENGTH = 6;
 const rooms = new Map();
 
 function generateRoomCode() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
     for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
+        code += CHARS[Math.floor(Math.random() * CHARS.length)];
     }
     return code;
 }
@@ -74,7 +74,7 @@ function resetRoom(room) {
     room.undoVotes.clear();
     room.undoProposalBy = null;
 
-    // ----- 新增：重置颜色选择阶段 -----
+    // ==================== 重置颜色选择阶段 ====================
     room.phase = "color_selection";
     room.players.forEach((p) => {
         p.color = null;
@@ -94,7 +94,6 @@ function undoLastMove(room) {
 
 function getRoomState(room, playerId) {
     const player = room.players.find((entry) => entry.id === playerId);
-    const status = room.players.length < 2 ? "waiting" : room.gameOver ? "finished" : "playing";
 
     return {
         code: room.code,
@@ -131,14 +130,14 @@ function isLegalMove(room, row, col, player) {
     if (room.board[row][col] !== 0) return false;
 
     const opponent = player === 1 ? 2 : 1;
-    const directions = [
+    const DIRECTIONS = [
         [-1, 0],
         [1, 0],
         [0, -1],
         [0, 1]
     ];
 
-    for (const [dr, dc] of directions) {
+    for (const [dr, dc] of DIRECTIONS) {
         const nr = row + dr;
         const nc = col + dc;
         if (nr >= 0 && nr < room.boardSize && nc >= 0 && nc < room.boardSize) {
@@ -187,7 +186,7 @@ function parseBody(req, callback) {
 
 function serveStaticFile(filePath, res) {
     const ext = path.extname(filePath).toLowerCase();
-    const contentTypes = {
+    const CONTENT_TYPES = {
         ".html": "text/html; charset=utf-8",
         ".css": "text/css; charset=utf-8",
         ".js": "application/javascript; charset=utf-8"
@@ -200,7 +199,7 @@ function serveStaticFile(filePath, res) {
             return;
         }
         res.writeHead(200, {
-            "Content-Type": contentTypes[ext] || "application/octet-stream"
+            "Content-Type": CONTENT_TYPES[ext] || "application/octet-stream"
         });
         res.end(data);
     });
@@ -265,7 +264,6 @@ function startServer(port) {
                 }
 
                 const playerId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
-                const color = room.players.length === 0 ? 1 : 2;
                 const player = { id: playerId, color: null, selectedColor: null };
 
                 room.players.push(player);
@@ -290,6 +288,12 @@ function startServer(port) {
 
         if (pathname === "/choose-color" && method === "POST") {
             parseBody(req, (body) => {
+                if (!body) {
+                    res.writeHead(400, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "缺少参数" }));
+                    return;
+                }
+
                 const { code, playerId, color } = body;
                 const room = rooms.get(code);
                 if (!room) {
@@ -480,9 +484,9 @@ function startServer(port) {
                     return;
                 }
 
-                const validSizes = [6, 8, 10, 12];
+                const VALID_SIZES = [6, 8, 10, 12];
                 const newSize = Number(boardSize);
-                if (!validSizes.includes(newSize)) {
+                if (!VALID_SIZES.includes(newSize)) {
                     res.writeHead(400, { "Content-Type": "application/json" });
                     res.end(JSON.stringify({ error: "非法棋盘大小" }));
                     return;

@@ -131,8 +131,6 @@ let lastPromptedPendingRestart = false;
 let restartPromptResolver = null;
 let lastPromptedPendingUndo = false;
 let undoPromptResolver = null;
-let localChannel = null;
-let localSyncEnabled = false;
 
 const DEFAULT_SERVER_URL = "http://localhost:3000";
 const SERVER_URL_STORAGE_KEY = "boardGameServerUrl";
@@ -163,12 +161,12 @@ async function probeServerUrl(candidateUrl) {
 
 async function autoDetectServerUrl() {
     const candidates = [];
-    const hostCandidates = [window.location.hostname, "localhost", "127.0.0.1"];
-    const ports = [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010];
+    const HOST_CANDIDATES = [window.location.hostname, "localhost", "127.0.0.1"];
+    const PORTS = [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010];
 
     const seen = new Set();
-    for (const host of hostCandidates) {
-        for (const port of ports) {
+    for (const host of HOST_CANDIDATES) {
+        for (const port of PORTS) {
             const candidate = `http://${host}:${port}`;
             if (!seen.has(candidate)) {
                 candidates.push(candidate);
@@ -470,8 +468,6 @@ function initializeGame() {
         userColor = PLAYER_BLACK;
         aiColor = PLAYER_WHITE;
     }
-    currentPlayer = PLAYER_BLACK;
-    gameOver = false;
 
     updateModeSpecificUI();
     renderBoard();
@@ -749,7 +745,7 @@ function createPiece(player, row, col) {
 function handleMove(row, col) {
     if (aiThinking || gameOver) return;
 
-    if (isOnlineMode && onlinePhase === 'color_selection') {
+    if (isOnlineMode && onlinePhase === "color_selection") {
         alert("请先选择棋子颜色！");
         return;
     }
@@ -1226,8 +1222,8 @@ function exportRecord() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
 
-    const dateStr = new Date().toISOString().slice(0, 10);
     const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
     const hours = String(now.getHours()).padStart(2, "0");
     const minutes = String(now.getMinutes()).padStart(2, "0");
     const secs = String(now.getSeconds()).padStart(2, "0");
@@ -1442,10 +1438,10 @@ function resumeGameFromReplay() {
 
 // ==================== 在线对战 ====================
 function generateRoomCode() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
     for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
+        code += CHARS[Math.floor(Math.random() * CHARS.length)];
     }
     return code;
 }
@@ -1810,13 +1806,13 @@ function sendRejectUndoRequest() {
 function applyServerState(state) {
     if (!state) return;
 
-    // ----- 保存旧状态，用于变化检测 -----
+    // ==================== 保存旧状态 ====================
     const oldBoard = board.map((row) => [...row]);
     const oldMoveHistory = moveHistory.slice();
     const oldBoardSize = boardSize;
     const oldPhase = onlinePhase;
 
-    // ----- 更新全局变量（新状态）-----
+    // ==================== 更新全局变量 ====================
     if (state.code) {
         onlineRoomCode = state.code;
     }
@@ -1832,7 +1828,7 @@ function applyServerState(state) {
     isOnlineMyTurn = currentPlayer === onlineColor;
     onlinePhase = state.phase || "waiting";
 
-    // ========== 离开检测 ==========
+    // ==================== 离开检测 ====================
     if (isOnlineMode && onlineRoomCode && onlinePlayerId) {
         const players = state.players || [];
         const playerInRoom = players.some((p) => p.id === onlinePlayerId);
@@ -1854,7 +1850,7 @@ function applyServerState(state) {
         }
     }
 
-    // ----- 检测是否有变化 -----
+    // ==================== 检测变化 ====================
     let boardChanged = false;
     if (boardSize !== oldBoardSize) {
         boardChanged = true;
@@ -1948,43 +1944,6 @@ function applyServerState(state) {
     }
 
     saveGameState();
-}
-
-function updateOnlineStatusText(state) {
-    const pendingSize = state.pendingBoardSize;
-    const isProposalOwner =
-        pendingSize !== null && pendingSize !== undefined && state.boardSizeProposalBy === onlinePlayerId;
-    const hasVoted =
-        pendingSize !== null && pendingSize !== undefined && (state.boardSizeVotes || []).includes(onlinePlayerId);
-
-    if (pendingSize !== null && pendingSize !== undefined) {
-        if (isProposalOwner) {
-            onlineStatus.textContent = `已提议改为 ${pendingSize}×${pendingSize}，等待对方确认...`;
-        } else if (!hasVoted) {
-            onlineStatus.textContent = `对方提议改为 ${pendingSize}×${pendingSize}，等待你确认...`;
-        } else {
-            onlineStatus.textContent = `等待对方确认棋盘大小变更...`;
-        }
-    } else if (state.pendingRestart) {
-        if (state.restartProposalBy === onlinePlayerId) {
-            onlineStatus.textContent = "已提议重新开始，等待对方确认...";
-        } else {
-            onlineStatus.textContent = "对方提议重新开始，等待你确认...";
-        }
-    } else if (state.pendingUndo) {
-        if (state.undoProposalBy === onlinePlayerId) {
-            onlineStatus.textContent = "已提议悔棋，等待对方确认...";
-        } else {
-            onlineStatus.textContent = "对方提议悔棋，等待你确认...";
-        }
-    } else {
-        // 恢复常规状态
-        if (state.status === "waiting") {
-            onlineStatus.textContent = "等待对手加入...";
-        } else {
-            onlineStatus.textContent = "";
-        }
-    }
 }
 
 function handleRestartVotePrompt(state) {
