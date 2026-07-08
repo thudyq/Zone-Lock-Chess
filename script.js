@@ -19,9 +19,10 @@ const NEIGHBOR_DIRECTIONS = [
 
 const AI_DELAY_MS = 300;
 
-const WEIGHT_MOBILITY = 1.0;
-const WEIGHT_CENTER = 0.5;
-const WEIGHT_GROUP = 0.4;
+const WEIGHT_MOBILITY = 2.0;
+const WEIGHT_CENTER = 0.8;
+const WEIGHT_GROUP = 0.5;
+const WEIGHT_EDGE = 0.6;
 
 const PLAYER_BLACK = 1;
 const PLAYER_WHITE = 2;
@@ -1103,17 +1104,28 @@ function findBestMoveMinimax(depth, player) {
     return bestMove;
 }
 
-function minimax(depth, alpha, beta, isMaximizingPlayer, player, opponent) {
-    if (depth === 0 || !hasLegalMove(player)) {
-        return evaluateBoard();
+function minimax(depth, alpha, beta, isMaximizingPlayer, aiPlayer, humanPlayer) {
+    const currentPlayer = isMaximizingPlayer ? aiPlayer : humanPlayer;
+    const legalMoves = getLegalMoves(currentPlayer);
+
+    if (legalMoves.length === 0) {
+        const opponent = getOpponent(currentPlayer);
+        const opponentMoves = getLegalMoves(opponent);
+        if (opponentMoves.length === 0) {
+            return 0;
+        }
+        return isMaximizingPlayer ? -10000 : 10000;
+    }
+
+    if (depth === 0) {
+        return evaluateBoard(aiPlayer);
     }
 
     if (isMaximizingPlayer) {
         let maxScore = -Infinity;
-        const moves = getLegalMoves(player);
-        for (const move of moves) {
-            board[move.row][move.col] = player;
-            const score = minimax(depth - 1, alpha, beta, false, player, opponent);
+        for (const move of legalMoves) {
+            board[move.row][move.col] = aiPlayer;
+            const score = minimax(depth - 1, alpha, beta, false, aiPlayer, humanPlayer);
             board[move.row][move.col] = 0;
             maxScore = Math.max(maxScore, score);
             alpha = Math.max(alpha, score);
@@ -1122,10 +1134,9 @@ function minimax(depth, alpha, beta, isMaximizingPlayer, player, opponent) {
         return maxScore;
     } else {
         let minScore = Infinity;
-        const moves = getLegalMoves(opponent);
-        for (const move of moves) {
-            board[move.row][move.col] = opponent;
-            const score = minimax(depth - 1, alpha, beta, true, player, opponent);
+        for (const move of legalMoves) {
+            board[move.row][move.col] = humanPlayer;
+            const score = minimax(depth - 1, alpha, beta, true, aiPlayer, humanPlayer);
             board[move.row][move.col] = 0;
             minScore = Math.min(minScore, score);
             beta = Math.min(beta, score);
@@ -1135,25 +1146,30 @@ function minimax(depth, alpha, beta, isMaximizingPlayer, player, opponent) {
     }
 }
 
-function evaluateBoard() {
-    const whiteMoves = countLegalMoves(PLAYER_WHITE);
-    const blackMoves = countLegalMoves(PLAYER_BLACK);
+function evaluateBoard(forPlayer) {
+    const opponent = getOpponent(forPlayer);
+    const myMoves = countLegalMoves(forPlayer);
+    const oppMoves = countLegalMoves(opponent);
 
-    if (whiteMoves === 0 && blackMoves === 0) {
+    if (myMoves === 0 && oppMoves === 0) {
         return 0;
     }
-    if (whiteMoves === 0) {
+    if (myMoves === 0) {
         return -10000;
     }
-    if (blackMoves === 0) {
+    if (oppMoves === 0) {
         return 10000;
     }
 
-    const mobilityScore = whiteMoves - blackMoves;
-    const centerScore = getBoardCenterScore(PLAYER_WHITE) - getBoardCenterScore(PLAYER_BLACK);
-    const groupScore = getBoardGroupScore(PLAYER_WHITE) - getBoardGroupScore(PLAYER_BLACK);
+    const mobilityScore = myMoves - oppMoves;
+    const centerScore = getBoardCenterScore(forPlayer) - getBoardCenterScore(opponent);
+    const groupScore = getBoardGroupScore(forPlayer) - getBoardGroupScore(opponent);
+    const edgePenalty = getEdgePenalty(forPlayer) - getEdgePenalty(opponent);
 
-    return WEIGHT_MOBILITY * mobilityScore + WEIGHT_CENTER * centerScore + WEIGHT_GROUP * groupScore;
+    return WEIGHT_MOBILITY * mobilityScore
+        + WEIGHT_CENTER * centerScore
+        + WEIGHT_GROUP * groupScore
+        - WEIGHT_EDGE * edgePenalty;
 }
 
 function getCenterScore(row, col) {
@@ -1208,6 +1224,26 @@ function getBoardGroupScore(player) {
     }
 
     return score / 2;
+}
+
+function getEdgePenalty(player) {
+    let penalty = 0;
+    const lastIndex = boardSize - 1;
+
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (board[row][col] === player) {
+                if (row === 0 || row === lastIndex || col === 0 || col === lastIndex) {
+                    penalty += 1;
+                }
+                if ((row === 0 || row === lastIndex) && (col === 0 || col === lastIndex)) {
+                    penalty += 2;
+                }
+            }
+        }
+    }
+
+    return penalty;
 }
 
 // ==================== 棋谱系统 ====================
