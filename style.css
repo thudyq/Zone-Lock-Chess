@@ -595,6 +595,10 @@ select {
         aspect-ratio: 1;
     }
 
+    .piece {
+        --piece-size: 70%;
+    }
+
     /* ==================== 列标签 ==================== */
 
     #columnLabels {
@@ -669,7 +673,6 @@ select {
 @media (max-width: 600px) {
     :root {
         --cell-size: 40px;
-        --piece-size: 26px;
         --coord-label-width: 28px;
         --coord-label-height: 28px;
     }
@@ -720,7 +723,6 @@ select {
 @media (max-width: 480px) {
     :root {
         --cell-size: 34px;
-        --piece-size: 22px;
         --coord-label-width: 24px;
         --coord-label-height: 24px;
     }
@@ -745,7 +747,6 @@ select {
 @media (max-width: 400px) {
     :root {
         --cell-size: 28px;
-        --piece-size: 18px;
         --coord-label-width: 20px;
         --coord-label-height: 20px;
     }
@@ -781,7 +782,6 @@ select {
 @media (max-width: 350px) {
     :root {
         --cell-size: 24px;
-        --piece-size: 16px;
         --coord-label-width: 18px;
         --coord-label-height: 18px;
     }
