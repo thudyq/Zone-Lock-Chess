@@ -35,6 +35,8 @@ const DIFFICULTY_EASY = "easy";
 const DIFFICULTY_MEDIUM = "medium";
 const DIFFICULTY_HARD = "hard";
 const DIFFICULTY_EXPERT = "expert";
+const DIFFICULTY_MASTER = "master";
+const MASTER_TIME_LIMIT_SECONDS = 2.0;
 
 const SEARCH_DEPTH_HARD = 2;
 const SEARCH_DEPTH_EXPERT = 3;
@@ -102,6 +104,9 @@ let userColor = PLAYER_BLACK;
 let aiColor = PLAYER_WHITE;
 let aiThinking = false;
 let aiTimer = null;
+let masterWorker = null;
+let masterGameId = createMasterGameId();
+let masterRequestId = 0;
 let previousBoardSize = boardSizeSelect.value;
 let previousGameMode = gameModeSelect.value;
 let previousAiDifficulty = aiDifficultySelect.value;
@@ -438,6 +443,7 @@ serverUrlInput.addEventListener("keydown", (event) => {
 // ==================== 游戏初始化与重置 ====================
 function initializeGame() {
     stopAiTimer();
+    resetMasterSession();
     stopReplayTimer();
     exitReplayMode();
 
@@ -487,6 +493,7 @@ function initializeGame() {
 }
 
 function resetToIdleState() {
+    resetMasterSession();
     board = createEmptyBoard(boardSize);
     moveHistory = [];
     currentPlayer = PLAYER_BLACK;
@@ -882,6 +889,7 @@ function stopAiTimer() {
 // ==================== 悔棋 ====================
 function undoMove() {
     if (isReplayMode || moveHistory.length === 0) return;
+    resetMasterSession();
 
     if (gameModeSelect.value === "ai") {
         undoAiSideMoves();
@@ -1020,7 +1028,70 @@ function showResult(text) {
 }
 
 // ==================== AI ====================
-function makeAiMove() {
+function createMasterGameId() {
+    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+        return globalThis.crypto.randomUUID();
+    }
+    return `master-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function resetMasterSession() {
+    masterGameId = createMasterGameId();
+    masterRequestId++;
+    if (masterWorker) {
+        masterWorker.terminate();
+        masterWorker = null;
+    }
+}
+
+function getMasterWorker() {
+    if (!masterWorker) {
+        masterWorker = new Worker("./master-worker.js", { type: "module" });
+    }
+    return masterWorker;
+}
+
+function requestMasterMove() {
+    const worker = getMasterWorker();
+    const requestId = ++masterRequestId;
+    const gameId = masterGameId;
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error("Master AI 搜索超时"));
+        }, (MASTER_TIME_LIMIT_SECONDS + 3) * 1000);
+
+        const cleanup = () => {
+            clearTimeout(timeout);
+            worker.removeEventListener("message", onMessage);
+            worker.removeEventListener("error", onError);
+        };
+        const onMessage = event => {
+            const message = event.data;
+            if (!message || message.requestId !== requestId) return;
+            cleanup();
+            if (message.type === "error") reject(new Error(message.error));
+            else resolve(message);
+        };
+        const onError = event => {
+            cleanup();
+            reject(new Error(event.message || "Master AI Worker 加载失败"));
+        };
+        worker.addEventListener("message", onMessage);
+        worker.addEventListener("error", onError);
+        worker.postMessage({
+            type: "choose",
+            requestId,
+            gameId,
+            boardSize,
+            moves: moveHistory.map(move => ({ ...move })),
+            aiColor,
+            timeLimit: MASTER_TIME_LIMIT_SECONDS
+        });
+    });
+}
+
+async function makeAiMove() {
     if (gameOver || gameModeSelect.value !== "ai") {
         aiThinking = false;
         return;
@@ -1032,21 +1103,37 @@ function makeAiMove() {
     }
     const difficulty = aiDifficultySelect.value;
     let bestMove;
-    switch (difficulty) {
-        case DIFFICULTY_EASY:
-            bestMove = getRandomMove(legalMoves);
-            break;
-        case DIFFICULTY_HARD:
-            bestMove = findBestMoveMinimax(SEARCH_DEPTH_HARD, aiColor);
-            break;
-        case DIFFICULTY_EXPERT:
-            bestMove = findBestMoveMinimax(SEARCH_DEPTH_EXPERT, aiColor);
-            break;
-        case DIFFICULTY_MEDIUM:
-        default:
-            bestMove = findBestMove(legalMoves, aiColor);
-            break;
+    const requestGameId = masterGameId;
+    try {
+        switch (difficulty) {
+            case DIFFICULTY_EASY:
+                bestMove = getRandomMove(legalMoves);
+                break;
+            case DIFFICULTY_HARD:
+                bestMove = findBestMoveMinimax(SEARCH_DEPTH_HARD, aiColor);
+                break;
+            case DIFFICULTY_EXPERT:
+                bestMove = findBestMoveMinimax(SEARCH_DEPTH_EXPERT, aiColor);
+                break;
+            case DIFFICULTY_MASTER:
+                bestMove = await requestMasterMove();
+                break;
+            case DIFFICULTY_MEDIUM:
+            default:
+                bestMove = findBestMove(legalMoves, aiColor);
+                break;
+        }
+    } catch (error) {
+        aiThinking = false;
+        turnText.textContent = `Master AI 无法运行：${error.message}`;
+        return;
     }
+    if (
+        requestGameId !== masterGameId
+        || gameOver
+        || gameModeSelect.value !== "ai"
+        || currentPlayer !== aiColor
+    ) return;
     aiThinking = false;
     if (bestMove) {
         handleMove(bestMove.row, bestMove.col);
@@ -1322,6 +1409,7 @@ function validateRecord(record) {
 
 function enterReplayMode(record) {
     stopAiTimer();
+    resetMasterSession();
     stopReplayTimer();
 
     isReplayMode = true;
