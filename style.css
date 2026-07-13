@@ -1,0 +1,805 @@
+/* ==================== 主题变量 ==================== */
+
+:root {
+    --bg-color: #f5f6f8;
+    --text-color: #333333;
+    --panel-bg: #ffffff;
+    --panel-border: #dddddd;
+    --panel-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --board-bg: #ffffff;
+    --board-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --cell-bg: #e0e0e0;
+    --cell-border: #999999;
+    --cell-hover: rgba(0, 0, 0, 0.05);
+    --coord-color: inherit;
+    --legal-move-color: #4caf50;
+    --black-piece: #1a1a1a;
+    --white-piece: #f5f5f5;
+    --white-piece-border: #666666;
+    --history-highlight: #fff3cd;
+    --overlay-bg: rgba(0, 0, 0, 0.4);
+    --result-box-bg: #ffffff;
+    --button-bg: #f0f0f0;
+    --button-hover: #e0e0e0;
+    --button-text: #333333;
+    --select-bg: #ffffff;
+    --select-border: #cccccc;
+
+    --cell-size: 60px;
+    --piece-size: 42px;
+    --coord-label-width: 40px;
+    --coord-label-height: 40px;
+}
+
+.dark {
+    --bg-color: #121212;
+    --text-color: #e0e0e0;
+    --panel-bg: #1e1e1e;
+    --panel-border: #333333;
+    --panel-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --board-bg: #1e1e1e;
+    --board-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --cell-bg: #2d2d2d;
+    --cell-border: #444444;
+    --cell-hover: rgba(255, 255, 255, 0.08);
+    --coord-color: #b0b0b0;
+    --legal-move-color: #66bb6a;
+    --black-piece: #0a0a0a;
+    --white-piece: #e0e0e0;
+    --white-piece-border: #999999;
+    --history-highlight: #5c4b00;
+    --overlay-bg: rgba(0, 0, 0, 0.7);
+    --result-box-bg: #1e1e1e;
+    --button-bg: #333333;
+    --button-hover: #444444;
+    --button-text: #e0e0e0;
+    --select-bg: #2d2d2d;
+    --select-border: #444444;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin-top: 20px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: Arial, sans-serif;
+    text-align: center;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+button,
+select {
+    padding: 8px 16px;
+    background: var(--button-bg);
+    border: 1px solid var(--select-border);
+    border-radius: 6px;
+    color: var(--button-text);
+    font-size: 16px;
+    transition: background-color 0.2s, transform 0.1s;
+    cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+    background: var(--button-hover);
+}
+
+button:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+select {
+    background: var(--select-bg);
+}
+
+.ai-difficulty-label.disabled,
+.ai-difficulty-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ==================== 顶部控制栏 ==================== */
+
+#topBar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 25px;
+    padding: 0 12px;
+}
+
+#themeToggle {
+    padding: 6px 12px;
+    font-size: 20px;
+    line-height: 1.35;
+}
+
+/* ==================== 主布局 ==================== */
+
+#mainArea {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 20px;
+    max-width: none;
+    margin: 0 auto;
+    padding: 0;
+}
+
+#mainArea > * {
+    position: relative;
+    z-index: 1;
+}
+
+#infoPanel {
+    flex: 0 0 280px;
+    flex-shrink: 0;
+    width: 280px;
+    overflow: hidden;
+    font-size: 16px;
+    text-align: left;
+}
+
+#infoPanel h2 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 20px;
+}
+
+#infoPanel h3 {
+    margin: 14px 0 8px;
+    font-size: 18px;
+}
+
+#infoPanel p,
+#infoPanel li {
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+#infoPanel ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+#boardContainer {
+    display: flex;
+    flex: 0 0 auto;
+    justify-content: center;
+    min-width: 0;
+    max-width: 100vw;
+    overflow-x: auto;
+}
+
+#sidePanel {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 15px;
+    width: fit-content;
+    overflow: hidden;
+}
+
+.panelCard {
+    padding: 15px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    box-shadow: var(--panel-shadow);
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.panelCard h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+/* ==================== 棋盘区域 ==================== */
+
+#gameArea {
+    width: fit-content;
+    margin: 0 auto;
+    padding: 15px 20px 20px 15px;
+    background: var(--board-bg);
+    border-radius: 12px;
+    box-shadow: var(--board-shadow);
+    transition: background-color 0.3s;
+}
+
+#boardRow {
+    display: flex;
+    align-items: flex-start;
+}
+
+#board {
+    display: grid;
+    justify-content: center;
+    gap: 2px;
+    grid-template-columns: repeat(8, var(--cell-size));
+}
+
+/* ==================== 坐标标签 ==================== */
+
+.coord-label {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--coord-color);
+    font-weight: bold;
+}
+
+#columnLabels {
+    display: flex;
+    gap: 2px;
+    margin-left: var(--coord-label-width);
+}
+
+#columnLabels .coord-label {
+    width: var(--cell-size);
+    height: var(--coord-label-height);
+}
+
+#rowLabels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#rowLabels .coord-label {
+    width: var(--coord-label-width);
+    height: var(--cell-size);
+}
+
+/* ==================== 格子 ==================== */
+
+.cell {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: var(--cell-size);
+    height: var(--cell-size);
+    background-color: var(--cell-bg);
+    border: 1px solid var(--cell-border);
+    cursor: pointer;
+}
+
+.cell:hover {
+    background-color: var(--cell-hover);
+}
+
+.legal-move::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20%;
+    height: 20%;
+    background-color: var(--legal-move-color);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    content: "";
+}
+
+@keyframes pulse {
+    0%,
+        100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.6;
+        transform: scale(1.4);
+    }
+}
+
+/* ==================== 棋子与预览 ==================== */
+
+.piece {
+    width: var(--piece-size);
+    height: var(--piece-size);
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.piece-black {
+    background-color: var(--black-piece);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.piece-white {
+    background-color: var(--white-piece);
+    border: 1px solid var(--white-piece-border);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.piece-placed {
+    animation: placePiece 0.35s ease-out;
+}
+
+@keyframes placePiece {
+    0% {
+        transform: scale(0);
+    }
+
+    70% {
+        transform: scale(1.12);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.preview-black::before,
+.preview-white::before {
+    position: absolute;
+    width: var(--piece-size);
+    height: var(--piece-size);
+    border-radius: 50%;
+    content: "";
+}
+
+.preview-black::before {
+    background: var(--black-piece);
+    opacity: 0.3;
+}
+
+.preview-white::before {
+    background: var(--white-piece);
+    border: 1px solid var(--white-piece-border);
+    opacity: 0.6;
+}
+
+/* ==================== 棋谱记录 ==================== */
+
+#historyPanel,
+#recordPanel,
+#replayPanel,
+#onlinePanel {
+    width: 300px;
+    margin: 20px auto;
+    text-align: left;
+}
+
+#historyList {
+    max-height: 300px;
+    margin: 0;
+    padding-left: 8px;
+    overflow-y: auto;
+    list-style-position: inside;
+}
+
+#historyList li {
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+#historyList li.current-replay-move {
+    background-color: var(--history-highlight);
+    font-weight: bold;
+}
+
+#recordPanel button,
+#replayPanel button,
+#replayPanel select {
+    margin: 4px 4px 4px 0;
+}
+
+#replayControls {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+#replayControls button {
+    flex: 1;
+    min-width: 40px;
+}
+
+#replayControls button:disabled,
+#replaySpeedSelect:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#replaySpeed {
+    margin-bottom: 10px;
+}
+
+#playerColorSelection {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+#playerColorSelection > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#onlinePanel input[type="text"] {
+    width: calc(100% - 90px);
+    padding: 8px;
+    background: var(--select-bg);
+    border: 1px solid var(--select-border);
+    border-radius: 6px;
+    color: var(--text-color);
+    font-size: 16px;
+}
+
+#onlineStatus {
+    min-height: 24px;
+    margin: 10px 0;
+    font-weight: bold;
+}
+
+#roomCodeInput {
+    text-transform: uppercase;
+}
+
+#roomCodeDisplay {
+    margin-bottom: 10px;
+    padding: 10px;
+    background: var(--cell-bg);
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+    word-break: break-all;
+}
+
+/* ==================== 结束弹窗 ==================== */
+
+#overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+    background: var(--overlay-bg);
+}
+
+#resultBox {
+    padding: 30px;
+    background: var(--result-box-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+    transition: background-color 0.3s;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+#resultActions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+#confirmModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+#confirmBox {
+    width: min(92vw, 360px);
+    padding: 24px;
+    background: var(--panel-bg);
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+    color: var(--text-color);
+}
+
+#confirmTitle {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 18px;
+}
+
+#confirmMessage {
+    margin: 0;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+#confirmActions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+#confirmActions button {
+    min-width: 80px;
+}
+
+/* ==================== 响应式布局 ==================== */
+
+@media (max-width: 900px) {
+    #mainArea {
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        overflow-x: hidden;
+    }
+
+    #infoPanel,
+        #boardContainer,
+        #sidePanel {
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 600px;
+    }
+
+    #boardContainer {
+        display: flex;
+        justify-content: center;
+        overflow-x: auto;
+    }
+
+    /* ===== 棋盘自适应 ===== */
+
+    #board {
+        gap: 2px;
+        grid-template-columns: repeat(var(--board-size), 1fr) !important;
+        grid-template-rows: repeat(var(--board-size), 1fr) !important;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+    }
+
+    .cell {
+        width: auto !important;
+        height: auto !important;
+        aspect-ratio: 1;
+    }
+
+    .piece {
+        --piece-size: 70%;
+    }
+
+    /* ==================== 列标签 ==================== */
+
+    #columnLabels {
+        box-sizing: border-box;
+        display: grid;
+        gap: 2px;
+        grid-template-columns: repeat(var(--board-size), 1fr) !important;
+        width: calc(100% - var(--coord-label-width));
+        margin-left: var(--coord-label-width);
+    }
+
+    #columnLabels .coord-label {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: auto !important;
+        height: var(--coord-label-height);
+        font-size: var(--cell-font-size, 14px);
+    }
+
+    /* ==================== 行标签 ==================== */
+
+    #rowLabels {
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 2px;
+        width: var(--coord-label-width);
+    }
+
+    #rowLabels .coord-label {
+        display: flex;
+        flex: 1;
+        justify-content: center;
+        align-items: center;
+        height: auto !important;
+        font-size: var(--cell-font-size, 14px);
+    }
+
+    /* ==================== 棋盘行容器 ==================== */
+
+    #boardRow {
+        display: flex;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    /* ==================== 棋盘容器 ==================== */
+
+    #gameArea {
+        box-sizing: border-box;
+        width: 100%;
+        margin: 0 auto;
+        padding: 15px;
+    }
+
+    #historyPanel,
+        #recordPanel,
+        #replayPanel,
+        #onlinePanel {
+        width: 100%;
+        margin: 12px auto;
+    }
+
+    #themeToggle {
+        padding: 6px 12px;
+        font-size: 16px;
+        line-height: 1.4;
+    }
+}
+
+@media (max-width: 600px) {
+    :root {
+        --cell-size: 40px;
+        --coord-label-width: 28px;
+        --coord-label-height: 28px;
+    }
+
+    h1 {
+        font-size: 24px;
+    }
+
+    button,
+        select {
+        padding: 6px 12px;
+        font-size: 14px;
+    }
+
+    #topBar {
+        gap: 8px;
+    }
+
+    /* ==================== 棋盘自适应 ==================== */
+
+    #board {
+        gap: 1px !important;
+    }
+
+    #columnLabels {
+        gap: 1px;
+    }
+
+    #rowLabels {
+        gap: 1px !important;
+    }
+
+    .panelCard {
+        padding: 12px;
+    }
+
+    #gameArea {
+        padding: 8px 12px 12px 8px;
+    }
+
+    #themeToggle {
+        padding: 6px 10px;
+        font-size: 14px;
+        line-height: 1.4;
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --cell-size: 34px;
+        --coord-label-width: 24px;
+        --coord-label-height: 24px;
+    }
+
+    #board {
+        gap: 1px;
+    }
+
+    #columnLabels {
+        gap: 1px;
+    }
+
+    #rowLabels {
+        gap: 1px;
+    }
+
+    #gameArea {
+        padding: 6px 10px 10px 6px;
+    }
+}
+
+@media (max-width: 400px) {
+    :root {
+        --cell-size: 28px;
+        --coord-label-width: 20px;
+        --coord-label-height: 20px;
+    }
+
+    button,
+        select {
+        padding: 5px 10px;
+        font-size: 13px;
+    }
+
+    #board {
+        gap: 1px;
+    }
+
+    #columnLabels {
+        gap: 1px;
+    }
+
+    #rowLabels {
+        gap: 1px;
+    }
+
+    #gameArea {
+        padding: 4px 8px 8px 4px;
+    }
+
+    #themeToggle {
+        padding: 4px 8px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 350px) {
+    :root {
+        --cell-size: 24px;
+        --coord-label-width: 18px;
+        --coord-label-height: 18px;
+    }
+
+    #gameArea {
+        padding: 2px;
+    }
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+    #mainArea {
+        justify-content: flex-start;
+        overflow-x: auto;
+    }
+}
+
+/* ==================== 工具类 ==================== */
+
+.hidden {
+    display: none !important;
+}
