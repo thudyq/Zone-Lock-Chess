@@ -2,6 +2,8 @@
 
 **在线体验**：可直接访问 [https://thudyq.github.io/Zone-Lock-Chess/](https://thudyq.github.io/Zone-Lock-Chess/) 开始游戏，无需任何安装。
 
+> 更新提示：AI对战模式增加“大师”难度（基于MCTS），欢迎挑战！特别鸣谢：[RYAN](https://github.com/ryan20070326-ai/)
+
 **封域棋** 是一款基于原创规则的双人策略棋类游戏，支持本地双人对战、人机对战以及在线多人对战。游戏围绕“限制对手行动空间”的核心机制展开，规则简洁但富有深度。
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
