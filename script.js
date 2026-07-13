@@ -35,11 +35,8 @@ const DIFFICULTY_EASY = "easy";
 const DIFFICULTY_MEDIUM = "medium";
 const DIFFICULTY_HARD = "hard";
 const DIFFICULTY_EXPERT = "expert";
-<<<<<<< HEAD
-=======
 const DIFFICULTY_MASTER = "master";
 const MASTER_TIME_LIMIT_SECONDS = 2.0;
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
 
 const SEARCH_DEPTH_HARD = 2;
 const SEARCH_DEPTH_EXPERT = 3;
@@ -107,12 +104,9 @@ let userColor = PLAYER_BLACK;
 let aiColor = PLAYER_WHITE;
 let aiThinking = false;
 let aiTimer = null;
-<<<<<<< HEAD
-=======
 let masterWorker = null;
 let masterGameId = createMasterGameId();
 let masterRequestId = 0;
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
 let previousBoardSize = boardSizeSelect.value;
 let previousGameMode = gameModeSelect.value;
 let previousAiDifficulty = aiDifficultySelect.value;
@@ -449,10 +443,7 @@ serverUrlInput.addEventListener("keydown", (event) => {
 // ==================== 游戏初始化与重置 ====================
 function initializeGame() {
     stopAiTimer();
-<<<<<<< HEAD
-=======
     resetMasterSession();
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
     stopReplayTimer();
     exitReplayMode();
 
@@ -502,10 +493,7 @@ function initializeGame() {
 }
 
 function resetToIdleState() {
-<<<<<<< HEAD
-=======
     resetMasterSession();
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
     board = createEmptyBoard(boardSize);
     moveHistory = [];
     currentPlayer = PLAYER_BLACK;
@@ -901,10 +889,7 @@ function stopAiTimer() {
 // ==================== 悔棋 ====================
 function undoMove() {
     if (isReplayMode || moveHistory.length === 0) return;
-<<<<<<< HEAD
-=======
     resetMasterSession();
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
 
     if (gameModeSelect.value === "ai") {
         undoAiSideMoves();
@@ -1043,9 +1028,6 @@ function showResult(text) {
 }
 
 // ==================== AI ====================
-<<<<<<< HEAD
-function makeAiMove() {
-=======
 function createMasterGameId() {
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
         return globalThis.crypto.randomUUID();
@@ -1110,7 +1092,6 @@ function requestMasterMove() {
 }
 
 async function makeAiMove() {
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
     if (gameOver || gameModeSelect.value !== "ai") {
         aiThinking = false;
         return;
@@ -1122,23 +1103,6 @@ async function makeAiMove() {
     }
     const difficulty = aiDifficultySelect.value;
     let bestMove;
-<<<<<<< HEAD
-    switch (difficulty) {
-        case DIFFICULTY_EASY:
-            bestMove = getRandomMove(legalMoves);
-            break;
-        case DIFFICULTY_HARD:
-            bestMove = findBestMoveMinimax(SEARCH_DEPTH_HARD, aiColor);
-            break;
-        case DIFFICULTY_EXPERT:
-            bestMove = findBestMoveMinimax(SEARCH_DEPTH_EXPERT, aiColor);
-            break;
-        case DIFFICULTY_MEDIUM:
-        default:
-            bestMove = findBestMove(legalMoves, aiColor);
-            break;
-    }
-=======
     const requestGameId = masterGameId;
     try {
         switch (difficulty) {
@@ -1170,7 +1134,6 @@ async function makeAiMove() {
         || gameModeSelect.value !== "ai"
         || currentPlayer !== aiColor
     ) return;
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
     aiThinking = false;
     if (bestMove) {
         handleMove(bestMove.row, bestMove.col);
@@ -1446,10 +1409,7 @@ function validateRecord(record) {
 
 function enterReplayMode(record) {
     stopAiTimer();
-<<<<<<< HEAD
-=======
     resetMasterSession();
->>>>>>> d7fee91d46c1e1cdb4956a2907271fec07f27261
     stopReplayTimer();
 
     isReplayMode = true;
