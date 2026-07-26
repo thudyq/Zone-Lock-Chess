@@ -1046,7 +1046,7 @@ function resetMasterSession() {
 
 function getMasterWorker() {
     if (!masterWorker) {
-        masterWorker = new Worker("./master-worker.js", { type: "module" });
+        masterWorker = new Worker("./mcts/master-worker.js", { type: "module" });
     }
     return masterWorker;
 }

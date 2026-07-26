@@ -734,6 +734,13 @@ function startServer(port) {
             return;
         }
 
+        const filePath = path.join(__dirname, pathname);
+        const resolved = path.resolve(filePath);
+        if (resolved.startsWith(path.resolve(__dirname)) && method === "GET") {
+            serveStaticFile(filePath, res);
+            return;
+        }
+
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Not found" }));
     });
