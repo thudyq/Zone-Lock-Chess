@@ -922,13 +922,15 @@ function undoLastMove() {
 
 // ==================== UI 更新 ====================
 function updateTurnText() {
-    if (gameOver) {
-        return; // 游戏结束时不更新文本，保留结束信息
-    }
     if (isReplayMode) {
         turnText.textContent = `回放中：第 ${replayIndex} / ${moveHistory.length} 步`;
-        moveCountText.textContent = "";
+        const blackMoves = countLegalMoves(PLAYER_BLACK);
+        const whiteMoves = countLegalMoves(PLAYER_WHITE);
+        moveCountText.textContent = `黑棋可下：${blackMoves}    |    白棋可下：${whiteMoves}`;
         return;
+    }
+    if (gameOver) {
+        return; // 游戏结束时不更新文本，保留结束信息
     }
 
     if (isOnlineMode) {
