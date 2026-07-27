@@ -413,9 +413,12 @@ playerColorSelect.addEventListener("change", () => {
     }
     const newColor = Number(playerColorSelect.value);
     if (newColor === userColor) return;
-    const message = "切换执子颜色将重新开始游戏，是否继续？";
+    const message = "切换执子颜色后，你将与 AI 互换角色，是否继续？";
     if (confirm(message)) {
-        initializeGame();
+        userColor = newColor;
+        aiColor = getOpponent(newColor);
+        updateTurnText();
+        triggerAiIfNeeded();
     } else {
         playerColorSelect.value = userColor;
     }
@@ -1564,6 +1567,14 @@ function resumeGameFromReplay() {
 
     moveHistory = moveHistory.slice(0, replayIndex);
     exitReplayMode();
+
+    if (gameModeSelect.value === "ai") {
+        userColor = currentPlayer;
+        aiColor = getOpponent(currentPlayer);
+        playerColorSelect.value = String(userColor);
+        updateTurnText();
+    }
+
     saveGameState();
     triggerAiIfNeeded();
 }
