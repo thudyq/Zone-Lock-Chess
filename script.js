@@ -1424,6 +1424,11 @@ function enterReplayMode(record) {
 
     applyReplayIndex(0);
     updateReplayControls();
+
+    const playerColorDiv = document.getElementById("playerColorSelection");
+    if (playerColorDiv) playerColorDiv.style.display = "none";
+    aiDifficultySelect.disabled = true;
+    aiDifficultyLabel.classList.add("disabled");
 }
 
 function exitReplayMode() {
@@ -1436,6 +1441,7 @@ function exitReplayMode() {
     applyReplayIndex(moveHistory.length);
     checkGameEnd();
     updateReplayControls();
+    updateModeSpecificUI();
 }
 
 function applyReplayIndex(index) {
